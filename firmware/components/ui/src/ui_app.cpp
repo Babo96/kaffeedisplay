@@ -96,10 +96,7 @@ UiAppImpl::~UiAppImpl() {
 void UiAppImpl::start() {
     if (started_) return;
     build();
-    backend_.set_change_callback([this]() {
-        if (suppress_change_.exchange(false)) return;
-        queue_.push();
-    });
+    backend_.set_change_callback([this]() { queue_.push(); });
     housekeeping_timer_ = lv_timer_create(&UiAppImpl::housekeeping_cb, 100, this);
     started_ = true;
     last_book_activity_ = lv_tick_get();
@@ -241,19 +238,20 @@ void UiAppImpl::hide_toast() {
 
 void UiAppImpl::undo_last_booking() {
     if (toast_event_id_.empty()) return;
-    suppress_change_.store(true);
     Result<Event> result = backend_.undo_booking(toast_event_id_, next_request_id("undo"));
     if (result) {
         hide_toast();
         show_toast(strings::BOOK_UNDONE, false, "", kToastInfoMs);
         if (balance_label_ != nullptr) {
-            lv_label_set_text(balance_label_,
-                              format_balance(backend_.balance(selected_user_id_)).c_str());
+            const Cents saldo = backend_.balance(selected_user_id_);
+            lv_label_set_text(balance_label_, format_balance(saldo).c_str());
+            lv_obj_set_style_text_color(
+                balance_label_,
+                theme::color(saldo < 0 ? theme::COLOR_NEGATIVE : theme::COLOR_POSITIVE), 0);
         }
         stats_dirty_ = true;
         system_dirty_ = true;
     } else {
-        suppress_change_.store(false);
         show_toast(strings::BOOK_UNDO_FAILED, false, "", kToastInfoMs);
     }
 }
@@ -297,12 +295,10 @@ void UiAppImpl::book_product(const Product& product) {
 
     if (!guest_mode_ && selected_user_id_.empty()) return;
 
-    suppress_change_.store(true);
     Result<Event> result =
         guest_mode_ ? backend_.guest_sale(product.id, next_request_id("guest"))
                     : backend_.purchase(selected_user_id_, product.id, next_request_id("book"));
     if (!result) {
-        suppress_change_.store(false);
         show_toast(strings::BOOK_FAILED, false, "", kToastInfoMs);
         return;
     }
@@ -322,6 +318,9 @@ void UiAppImpl::book_product(const Product& product) {
         // stats/leaderboard off the booking event callback.
         if (balance_label_ != nullptr) {
             lv_label_set_text(balance_label_, format_balance(saldo).c_str());
+            lv_obj_set_style_text_color(
+                balance_label_,
+                theme::color(saldo < 0 ? theme::COLOR_NEGATIVE : theme::COLOR_POSITIVE), 0);
         }
         show_toast(text, true, event.id, kToastUndoMs);
     }
@@ -345,6 +344,7 @@ uint64_t UiAppImpl::book_catalog_fingerprint() const {
     mix(selected_user_id_.empty() ? 0 : 1);
     mix_text(selected_user_id_);
     mix(guest_mode_ ? 1 : 0);
+    mix(backend_.app_settings().guest_enabled ? 1 : 0);
     for (const User& user : backend_.users()) {
         if (!user.active) continue;
         mix_text(user.id);
@@ -379,8 +379,11 @@ void UiAppImpl::refresh_data() {
     } else if (balance_label_ != nullptr && !selected_user_id_.empty()) {
         // Topups/voids from the API/serial CLI change only the balance; update
         // the visible label instead of rebuilding the whole page.
-        lv_label_set_text(balance_label_,
-                          format_balance(backend_.balance(selected_user_id_)).c_str());
+        const Cents saldo = backend_.balance(selected_user_id_);
+        lv_label_set_text(balance_label_, format_balance(saldo).c_str());
+        lv_obj_set_style_text_color(
+            balance_label_, theme::color(saldo < 0 ? theme::COLOR_NEGATIVE : theme::COLOR_POSITIVE),
+            0);
     }
     if (current_page_ == 1) {
         refresh_stats_page();
@@ -520,12 +523,10 @@ void UiAppImpl::apply_hold_state() {
 std::string UiAppImpl::next_request_id(const char* prefix) {
     ++request_counter_;
     const TimeInfo time = backend_.time_info();
-    const SystemStats stats = backend_.stats();
-    // Uptime + wall clock make the id unique across reboots even though the
-    // counter and LVGL tick start at zero again.
-    return std::string("ui-") + prefix + "-" + std::to_string(stats.uptime_s) + "-" +
-           std::to_string(time.now) + "-" + std::to_string(request_counter_) + "-" +
-           std::to_string(lv_tick_get());
+    // No flash-backed stats() here: wall clock + LVGL tick + counter are enough
+    // for a boot-local id and keep the booking path free of storage I/O.
+    return std::string("ui-") + prefix + "-" + std::to_string(time.now) + "-" +
+           std::to_string(request_counter_) + "-" + std::to_string(lv_tick_get());
 }
 
 void UiAppImpl::wake() {
@@ -630,6 +631,17 @@ void UiAppImpl::tileview_changed_cb(lv_event_t* event) {
             if (app->current_page_ != i) {
                 app->current_page_ = i;
                 app->page_entered_at_ = lv_tick_get();
+                if (i == 1 && app->stats_dirty_) {
+                    app->refresh_stats_page();
+                    app->stats_dirty_ = false;
+                }
+                if (i == 2) {
+                    app->last_system_dynamic_ms_ = 0;
+                    if (app->system_dirty_) {
+                        app->refresh_system_page();
+                        app->system_dirty_ = false;
+                    }
+                }
                 app->update_dots();
             }
             break;

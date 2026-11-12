@@ -302,25 +302,35 @@ class SerialConsole {
             static_cast<uint32_t>(heap_caps_get_total_size(MALLOC_CAP_SPIRAM));
         const uint32_t internal_free =
             static_cast<uint32_t>(heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
+        const uint32_t internal_min =
+            static_cast<uint32_t>(heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL));
+        const uint32_t internal_largest =
+            static_cast<uint32_t>(heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL));
         TaskHandle_t lvgl_task = xTaskGetHandle("taskLVGL");
         const uint32_t lvgl_stack_free =
             lvgl_task != nullptr ? static_cast<uint32_t>(uxTaskGetStackHighWaterMark(lvgl_task))
                                  : 0;
+        TaskHandle_t httpd_task = xTaskGetHandle("httpd");
+        const uint32_t httpd_stack_free =
+            httpd_task != nullptr ? static_cast<uint32_t>(uxTaskGetStackHighWaterMark(httpd_task))
+                                  : 0;
 
         reply(
             "OK status seq=%llu users=%u users_active=%d products=%u products_active=%d "
             "time=%lld time_source=%s time_trusted=%d ap=%s ap_ip=%s sta=%s sta_ip=%s "
-            "uptime_s=%llu heap_free=%u heap_min=%u heap_internal_free=%u psram_free=%u "
-            "psram_total=%u lvgl_stack_free=%u storage_used=%llu storage_total=%llu "
+            "uptime_s=%llu heap_free=%u heap_min=%u heap_internal_free=%u "
+            "heap_internal_min=%u heap_internal_largest=%u psram_free=%u psram_total=%u "
+            "lvgl_stack_free=%u httpd_stack_free=%u storage_used=%llu storage_total=%llu "
             "storage_mounted=%d firmware=%s drinks_today=%d",
             static_cast<unsigned long long>(seq), static_cast<unsigned>(users.size()), active_users,
             static_cast<unsigned>(products.size()), active_products,
             static_cast<long long>(stats.time.now), time_source_name(stats.time),
             stats.time.trusted ? 1 : 0, ap, network.ap_ip.c_str(), sta, network.sta_ip.c_str(),
             static_cast<unsigned long long>(stats.uptime_s), static_cast<unsigned>(stats.free_heap),
-            static_cast<unsigned>(stats.min_free_heap), internal_free,
-            static_cast<unsigned>(stats.free_psram), static_cast<unsigned>(psram_total),
-            lvgl_stack_free, static_cast<unsigned long long>(stats.storage.used_bytes),
+            static_cast<unsigned>(stats.min_free_heap), internal_free, internal_min,
+            internal_largest, static_cast<unsigned>(stats.free_psram),
+            static_cast<unsigned>(psram_total), lvgl_stack_free, httpd_stack_free,
+            static_cast<unsigned long long>(stats.storage.used_bytes),
             static_cast<unsigned long long>(stats.storage.total_bytes),
             stats.storage.mounted ? 1 : 0, firmware, stats.drinks_today);
     }
@@ -483,6 +493,11 @@ class SerialConsole {
     }
 
     void cmd_ui(const std::vector<std::string>& tokens) {
+        if (tokens.size() >= 2 && (tokens[1] == "tap" || tokens[1] == "book") &&
+            !writes_allowed()) {
+            return reply_error("writes-disabled",
+                               "run 'unlock-writes <admin_password>' first (HIL only)");
+        }
         if (tokens.size() >= 2 && tokens[1] == "tap") {
             int64_t x = 0;
             int64_t y = 0;
@@ -504,7 +519,13 @@ class SerialConsole {
             if (!display_.lock(1000)) {
                 return reply_error("display-busy", "LVGL did not yield");
             }
-            lv_async_call(&SerialConsole::ui_book_async, request.release());
+            UiBookRequest* raw = request.get();
+            const lv_result_t queued = lv_async_call(&SerialConsole::ui_book_async, raw);
+            if (queued != LV_RESULT_OK) {
+                display_.unlock();
+                return reply_error("ui-queue", "LVGL async queue is full");
+            }
+            request.release();
             display_.unlock();
             reply("OK ui book queued user=%s product=%s", tokens[2].c_str(), tokens[3].c_str());
             return;
@@ -652,7 +673,7 @@ bool start_serial_console(KaffeeService& service, IPlatform& platform, EspDispla
     // it is guaranteed internal, contiguous and available after flash-cache
     // operations. The UI control pointer is attached later.
     static StaticTask_t task_buffer;
-    static StackType_t task_stack[12288];
+    static StackType_t task_stack[10240];
     if (xTaskCreateStatic(serial_task, "serial_cli", sizeof(task_stack), &console, 3, task_stack,
                           &task_buffer) == nullptr) {
         ESP_LOGE(kTag, "cannot create serial console task");

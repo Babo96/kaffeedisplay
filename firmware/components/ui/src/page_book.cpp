@@ -47,6 +47,7 @@ void UiAppImpl::build_page_book(lv_obj_t* tile) {
 void UiAppImpl::refresh_book_page() {
     if (book_body_ == nullptr) return;
     balance_label_ = nullptr;
+    last_book_fingerprint_ = book_catalog_fingerprint();
     lv_obj_clean(book_body_);
 
     std::vector<User> active_users;
@@ -162,7 +163,6 @@ void UiAppImpl::refresh_book_page() {
             lv_obj_add_event_cb(item, &UiAppImpl::product_click_cb, LV_EVENT_CLICKED, ctx);
             lv_obj_add_event_cb(item, &UiAppImpl::delete_context_cb, LV_EVENT_DELETE, ctx);
         }
-        last_book_fingerprint_ = book_catalog_fingerprint();
         return;
     }
 
@@ -241,7 +241,6 @@ void UiAppImpl::refresh_book_page() {
                           theme::color(theme::COLOR_MUTED));
         lv_obj_add_event_cb(item, &UiAppImpl::guest_click_cb, LV_EVENT_CLICKED, this);
     }
-    last_book_fingerprint_ = book_catalog_fingerprint();
 }
 
 void UiAppImpl::user_click_cb(lv_event_t* event) {

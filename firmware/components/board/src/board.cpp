@@ -704,10 +704,12 @@ void EspDisplay::touch_read_cb(lv_indev_t* indev, lv_indev_data_t* data) {
     data->continue_reading = false;
 }
 
-void EspDisplay::inject_touch(int x, int y) {
+bool EspDisplay::inject_touch(int x, int y) {
+    if (!lvgl_ready_.load() || lv_indev_ == nullptr) return false;
     synthetic_touch_x_.store(static_cast<uint16_t>(clamp_int(x, 0, kWidth - 1)));
     synthetic_touch_y_.store(static_cast<uint16_t>(clamp_int(y, 0, kHeight - 1)));
     synthetic_touch_pending_.store(true);
+    return true;
 }
 
 void EspDisplay::publish_touch(int32_t x, int32_t y, bool pressed) {

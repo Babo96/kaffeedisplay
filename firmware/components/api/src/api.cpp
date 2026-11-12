@@ -222,7 +222,7 @@ Result<Unit> ApiServerImpl::start() {
     // Ledger writes (product create/update, reports) use nlohmann::json on this
     // task; the default 4 KiB and the earlier 10 KiB both overflowed. Keep the
     // headroom explicit here because esp_http_server has no Kconfig stack knob.
-    config.stack_size = 12288;
+    config.stack_size = 16384;
     config.lru_purge_enable = true;
     // Uploads (OTA) must not pin a socket for long once the client stalls.
     config.recv_wait_timeout = 10;

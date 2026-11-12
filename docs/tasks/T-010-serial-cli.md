@@ -123,11 +123,12 @@ Root causes fixed:
    shows that users/products did not change; hidden stats/system pages are
    marked dirty and refreshed when entered. This stopped the repeated
    object-churn/internal-heap drain seen under serial `void` stress.
-4. The final memory split is: 16 KiB LVGL stack, 12 KiB console stack (static
-   internal), 12 KiB HTTP stack, five-line RGB bounce buffer, LVGL CLIB malloc
-   with allocations above 1 KiB preferring PSRAM, Wi-Fi 8 static RX buffers,
-   mDNS task/memory in PSRAM. This boots, starts the AP/HTTP server, survives
-   10+ UI bookings, and keeps `status`/flash commands working.
+4. The final memory split is: 16 KiB LVGL stack, 10 KiB console stack (static
+   internal), 16 KiB HTTP stack, five-line RGB bounce buffer, LVGL CLIB malloc
+   with all allocations preferring PSRAM, Wi-Fi 4 static RX buffers, mDNS
+   task/memory in PSRAM. This boots, starts the AP/HTTP server with >5 KiB
+   HTTPD headroom, survives 10+ UI bookings, and keeps `status`/flash commands
+   working.
 
 Diagnostics: `ui tap <x> <y>` injects a press into the real LVGL indev callback;
 `ui book <user_id> <product_id>` queues `debug_select_user` + `debug_book` on
@@ -168,9 +169,36 @@ for ~10 minutes with `status` high-water stable (`heap_internal_free` 603–623 
 `lvgl_stack_free` 10088 B, no abort/reboot). UI `ui book`/`ui tap` still books;
 test events were voided afterwards.
 
+
+## PR #10 review follow-up
+
+- **B1:** `JournalEventStore::info()` no longer uses `fopen`/`fclose`; file
+  sizes use `stat()`. `stats()` caches storage/backup/drinks for 3 s, page 3
+  dynamic data refreshes only while visible and at most every 5 s, and
+  `next_request_id()` no longer reads stats. A >10-minute page-3 soak kept
+  `heap_internal_free` at ~139.5 KiB (`min` ~106 KiB, `largest` ~61 KiB) with
+  no abort/reboot.
+- **B2:** `ui tap`/`ui book` now require `unlock-writes` and use the same
+  write gate as `book`/`void`; docs and the console header were corrected.
+- **B3:** HTTPD high-water is exposed as `httpd_stack_free`. At 12 KiB it fell
+  to 1476 B after settings writes, so the stack was restored to 16 KiB and RAM
+  recovered from Wi-Fi RX buffers/console stack. With 16 KiB: 30× JSON + 10×
+  CSV reports, 10× backup, 5× settings PUT and a full 2.8 MB OTA write (SHA
+  mismatch, no boot switch) left `httpd_stack_free=5608 B` (~5.6 KiB headroom
+  on the 16 KiB stack).
+- **B4:** `tileview_changed_cb()` now consumes `stats_dirty_`/`system_dirty_`
+  and a swipe to Statistik after 10 bookings showed Nathy 10 / Babo 1 (updated
+  leaderboard, no stale page).
+- Nits: catalog fingerprint includes `guest_enabled`; it is recorded
+  unconditionally; in-place balance labels update colour; `suppress_change_`
+  was removed (callback always queues, fingerprint avoids rebuild); `lv_async_call`
+  failure returns `ERR ui-queue`; `inject_touch` returns false before UI ready;
+  `status` reports internal heap min/largest, LVGL and HTTPD high-water.
+
 ## Evidence
 
-- `make test-host`: 139 cases / 17,421 assertions pass.
+- `make test-host`: 141 cases / 27,448 assertions pass (includes 5000×
+  `JournalEventStore::info()` / `KaffeeService::stats()` no-leak regressions).
 - `make check`: format, OpenAPI lint, docs links, host/web tests, web build,
   assets and size budgets pass.
 - `make build-docker` (ESP-IDF 5.5.6): app image 0x2b6cc0, 10% partition free.

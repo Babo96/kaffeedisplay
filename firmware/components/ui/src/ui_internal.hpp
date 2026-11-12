@@ -1,6 +1,5 @@
 #pragma once
 
-#include <atomic>
 #include <cstdint>
 #include <map>
 #include <mutex>
@@ -124,9 +123,6 @@ class UiAppImpl final : public UiApp, public UiControl {
 
     IUiBackend& backend_;
     ChangeQueue queue_;
-    // UI-originated writes update their visible widgets in place; suppress the
-    // service change callback once so they do not trigger a full page rebuild.
-    std::atomic<bool> suppress_change_{false};
     uint32_t request_counter_ = 0;
     bool started_ = false;
 

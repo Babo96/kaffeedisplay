@@ -78,7 +78,7 @@ class EspDisplay final : public IDisplay {
     // Inject a synthetic press into the real LVGL indev read callback. The next
     // callback returns PRESSED, the following one RELEASED, so LVGL runs its
     // normal hit-test/click path. Coordinates are raw panel coordinates.
-    void inject_touch(int x, int y);
+    bool inject_touch(int x, int y);
 
     // Direct framebuffer colour test used for bring-up diagnostics. It does
     // not touch LVGL and leaves eight vertical colour bars on the panel.
