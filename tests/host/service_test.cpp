@@ -26,6 +26,16 @@ constexpr const char* kPassword = "correct horse battery";
 
 std::atomic<int> g_temp_counter{0};
 
+size_t open_fd_count() {
+    std::error_code ec;
+    size_t count = 0;
+    for (const auto& entry : fs::directory_iterator("/proc/self/fd", ec)) {
+        (void)entry;
+        ++count;
+    }
+    return ec ? 0 : count;
+}
+
 struct TempDir {
     fs::path path;
 
@@ -851,6 +861,26 @@ TEST_CASE("service stats include storage, backup and drinks") {
     CHECK(after.last_backup_at == kNow);
     CHECK(after.storage.used_bytes > 0);
     CHECK(after.drinks_today == 2);
+}
+
+TEST_CASE("service stats polling is cached and does not leak fds") {
+    ServiceFixture fixture(true);
+    const std::string user_id = fixture.user("Ada");
+    const std::string product_id = fixture.product("Kaffee", 50);
+    REQUIRE(static_cast<bool>(fixture.service->purchase(user_id, product_id, "stats-cache")));
+
+    const size_t fds_before = open_fd_count();
+    const SystemStats first = fixture.service->stats();
+    for (int i = 0; i < 5000; ++i) {
+        const SystemStats stats = fixture.service->stats();
+        REQUIRE(stats.storage.mounted);
+    }
+    const SystemStats last = fixture.service->stats();
+    const size_t fds_after = open_fd_count();
+    CHECK(last.storage.used_bytes == first.storage.used_bytes);
+    CHECK(last.drinks_today == first.drinks_today);
+    CHECK(last.last_backup_at == first.last_backup_at);
+    CHECK(fds_after <= fds_before + 4);
 }
 
 TEST_CASE("drinks today excludes voided purchases") {

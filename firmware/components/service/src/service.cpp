@@ -367,6 +367,13 @@ class KaffeeServiceImpl final : public KaffeeService {
     std::string setup_password_;
     bool must_change_password_ = false;
     Timestamp last_backup_at_ = 0;
+    // stats() is polled by the LVGL task. Cache the flash-backed fields for a
+    // few seconds so page 3 cannot drive LittleFS/FILE allocation every tick.
+    mutable StorageInfo stats_storage_;
+    mutable Timestamp stats_backup_at_ = 0;
+    mutable int stats_drinks_ = 0;
+    mutable uint64_t stats_cache_uptime_s_ = 0;
+    mutable bool stats_cache_valid_ = false;
     const std::chrono::steady_clock::time_point mono_epoch_ = std::chrono::steady_clock::now();
     mutable uint64_t last_mono_ = 0;
 };
@@ -400,6 +407,7 @@ void KaffeeServiceImpl::notifier_loop() {
 
 void KaffeeServiceImpl::notify_changed() {
     std::lock_guard<std::mutex> lock(mutex_);
+    stats_cache_valid_ = false;
     notify_pending_ = true;
     notifier_cv_.notify_one();
 }
@@ -576,25 +584,38 @@ Leaderboard KaffeeServiceImpl::leaderboard(Timestamp from, Timestamp to) const {
 SystemStats KaffeeServiceImpl::stats() const {
     std::lock_guard<std::mutex> lock(mutex_);
     SystemStats out = platform_.stats();
-    out.storage = store_.info();
     out.time = platform_.time_info();
-    out.last_backup_at = last_backup_at_;
 
-    const Timestamp ts = out.time.now;
-    Timestamp day_start = 0;
-    Timestamp day_end = 0;
-    if (ts > 0 && berlin_day_bounds(ts, day_start, day_end)) {
-        int drinks = 0;
-        for (const Event& event : ledger_.events()) {
-            if (event.ts < day_start || event.ts >= day_end) continue;
-            if (event.type != EventType::Purchase && event.type != EventType::GuestSale) continue;
-            // A void keeps the original event in the append-only journal, but
-            // it no longer counts as a drink sold today.
-            if (ledger_.is_voided(event.id)) continue;
-            ++drinks;
+    const uint64_t uptime = out.uptime_s;
+    const bool refresh = !stats_cache_valid_ || uptime < stats_cache_uptime_s_ ||
+                         uptime - stats_cache_uptime_s_ >= 3;
+    if (refresh) {
+        stats_storage_ = store_.info();
+        stats_backup_at_ = last_backup_at_;
+        stats_drinks_ = 0;
+        const Timestamp ts = out.time.now;
+        Timestamp day_start = 0;
+        Timestamp day_end = 0;
+        if (ts > 0 && berlin_day_bounds(ts, day_start, day_end)) {
+            int drinks = 0;
+            for (const Event& event : ledger_.events()) {
+                if (event.ts < day_start || event.ts >= day_end) continue;
+                if (event.type != EventType::Purchase && event.type != EventType::GuestSale)
+                    continue;
+                // A void keeps the original event in the append-only journal,
+                // but it no longer counts as a drink sold today.
+                if (ledger_.is_voided(event.id)) continue;
+                ++drinks;
+            }
+            stats_drinks_ = drinks;
         }
-        out.drinks_today = drinks;
+        stats_cache_uptime_s_ = uptime;
+        stats_cache_valid_ = true;
     }
+
+    out.storage = stats_storage_;
+    out.last_backup_at = stats_backup_at_;
+    out.drinks_today = stats_drinks_;
     return out;
 }
 
@@ -1194,6 +1215,7 @@ Result<std::string> KaffeeServiceImpl::export_backup() {
                                 {"cash_counts", std::move(cash_counts)}};
 
     last_backup_at_ = now();
+    stats_cache_valid_ = false;
     return Result<std::string>::ok(backup.dump(2));
 }
 
@@ -1289,6 +1311,7 @@ Result<Unit> KaffeeServiceImpl::factory_reset() {
     setup_password_.clear();
     must_change_password_ = true;
     last_backup_at_ = 0;
+    stats_cache_valid_ = false;
     ledger_.reset();
     return Result<Unit>::ok(Unit{});
 }

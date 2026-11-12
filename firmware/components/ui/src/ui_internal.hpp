@@ -138,6 +138,7 @@ class UiAppImpl final : public UiApp, public UiControl {
     int current_page_ = 0;
     uint32_t page_entered_at_ = 0;
     uint32_t last_header_update_ = 0;
+    uint32_t last_system_dynamic_ms_ = 0;
 
     // Page 1
     lv_obj_t* book_body_ = nullptr;

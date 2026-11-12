@@ -426,6 +426,7 @@ void UiAppImpl::show_page(int index, bool animate) {
                                   animate ? LV_ANIM_ON : LV_ANIM_OFF);
     current_page_ = index;
     page_entered_at_ = lv_tick_get();
+    if (index == 2) last_system_dynamic_ms_ = 0;
     if (index == 1 && stats_dirty_) {
         refresh_stats_page();
         stats_dirty_ = false;
@@ -499,7 +500,11 @@ void UiAppImpl::housekeeping() {
     if (now - last_header_update_ >= 1000 || last_header_update_ == 0) {
         last_header_update_ = now;
         update_headers();
-        refresh_system_page();
+        if (current_page_ == 2) {
+            refresh_system_page();
+        } else {
+            system_dirty_ = true;
+        }
     }
 }
 

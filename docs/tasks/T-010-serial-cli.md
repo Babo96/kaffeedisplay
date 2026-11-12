@@ -133,6 +133,41 @@ Diagnostics: `ui tap <x> <y>` injects a press into the real LVGL indev callback;
 `ui book <user_id> <product_id>` queues `debug_select_user` + `debug_book` on
 the LVGL task. Both were exercised without a panic.
 
+
+## Page 3/report abort (follow-up)
+
+Repeated `GET /reports/transactions?...` and leaving the UI on page 3 aborted in
+newlib while creating a `FILE` lock:
+
+```text
+abort -> lock_init_generic -> __retarget_lock_init_recursive -> __sfp
+_fopen_r -> fopen -> JournalEventStore::file_size -> info()
+KaffeeServiceImpl::stats() -> UiAppImpl::update_system_dynamic
+```
+
+The LVGL housekeeping timer polled `stats()` every second; `stats()` called
+`JournalEventStore::info()`, whose `fopen`/`fclose` allocated newlib FILE locks
+from the tiny internal heap until it aborted.
+
+Fixes:
+
+- `JournalEventStore::info()` now uses `stat()` for file sizes/existence; no
+  `FILE` or lock allocation in the hot path. The host `FileEventStore` uses the
+  same base implementation; LittleFS totals still come from
+  `esp_littlefs_info()`.
+- `KaffeeService::stats()` caches storage/last-backup/drinks for 3 s and
+  invalidates the cache on mutations, backup export and factory reset.
+- Page 3 dynamic updates run only while page 3 is visible and at most every
+  5 s; hidden pages are marked dirty and refreshed on entry. Housekeeping no
+  longer touches the system page while another page is visible.
+- Host regressions call `JournalEventStore::info()` and
+  `KaffeeService::stats()` 5000 times and check storage values/fd count.
+
+Hardware evidence: 30× JSON + 10× CSV reports all returned 200; page 3 was held
+for ~10 minutes with `status` high-water stable (`heap_internal_free` 603–623 B,
+`lvgl_stack_free` 10088 B, no abort/reboot). UI `ui book`/`ui tap` still books;
+test events were voided afterwards.
+
 ## Evidence
 
 - `make test-host`: 139 cases / 17,421 assertions pass.

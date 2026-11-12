@@ -314,7 +314,10 @@ void UiAppImpl::build_system_body() {
 }
 
 void UiAppImpl::update_system_dynamic() {
-    if (system_body_ == nullptr) return;
+    if (system_body_ == nullptr || current_page_ != 2) return;
+    const uint32_t now_ms = lv_tick_get();
+    if (last_system_dynamic_ms_ != 0 && now_ms - last_system_dynamic_ms_ < 5000) return;
+    last_system_dynamic_ms_ = now_ms;
     NetworkStatus network = backend_.network_status();
     TimeInfo time = backend_.time_info();
     SystemStats stats = backend_.stats();

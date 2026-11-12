@@ -77,6 +77,16 @@ Scenario make_scenario(int drinks = 2) {
     return scenario;
 }
 
+size_t open_fd_count() {
+    std::error_code ec;
+    size_t count = 0;
+    for (const auto& entry : fs::directory_iterator("/proc/self/fd", ec)) {
+        (void)entry;
+        ++count;
+    }
+    return ec ? 0 : count;
+}
+
 std::string join_event_lines(const std::vector<Event>& events) {
     std::string out;
     for (const Event& event : events) {
@@ -474,4 +484,26 @@ TEST_CASE("memory settings store keeps a copy") {
     CHECK_FALSE(store.stored().app.guest_enabled);
     REQUIRE(static_cast<bool>(store.reset()));
     CHECK(store.stored().app.guest_enabled);
+}
+
+TEST_CASE("journal info polling does not leak file descriptors") {
+    TempDir dir;
+    const Scenario scenario = make_scenario(3);
+    FileEventStore store((dir.path / "store").string());
+    REQUIRE(static_cast<bool>(store.mount()));
+    for (const Event& event : scenario.events) {
+        REQUIRE(static_cast<bool>(store.append(event)));
+    }
+
+    const size_t fds_before = open_fd_count();
+    const StorageInfo first = store.info();
+    for (int i = 0; i < 5000; ++i) {
+        const StorageInfo info = store.info();
+        REQUIRE(info.mounted);
+    }
+    const StorageInfo last = store.info();
+    const size_t fds_after = open_fd_count();
+    CHECK(last.used_bytes == first.used_bytes);
+    CHECK(last.event_count == first.event_count);
+    CHECK(fds_after <= fds_before + 4);
 }
