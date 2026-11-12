@@ -493,7 +493,14 @@ class SerialConsole {
     }
 
     void cmd_ui(const std::vector<std::string>& tokens) {
-        if (tokens.size() >= 2 && (tokens[1] == "tap" || tokens[1] == "book") &&
+        if (tokens.size() == 2 && tokens[1] == "page") {
+            ui::UiControl* ui = ui_control_.load();
+            if (ui == nullptr) return reply_error("ui-not-ready", "UI app is not running");
+            reply("OK ui page %d", ui->page());
+            return;
+        }
+        if (tokens.size() >= 2 &&
+            (tokens[1] == "tap" || tokens[1] == "swipe" || tokens[1] == "book") &&
             !writes_allowed()) {
             return reply_error("writes-disabled",
                                "run 'unlock-writes <admin_password>' first (HIL only)");
@@ -507,6 +514,25 @@ class SerialConsole {
             }
             display_.inject_touch(static_cast<int>(x), static_cast<int>(y));
             reply("OK ui tap x=%lld y=%lld", static_cast<long long>(x), static_cast<long long>(y));
+            return;
+        }
+        if (tokens.size() >= 2 && tokens[1] == "swipe") {
+            int64_t x1 = 0;
+            int64_t y1 = 0;
+            int64_t x2 = 0;
+            int64_t y2 = 0;
+            if (tokens.size() != 6 || !parse_i64(tokens[2], x1) || !parse_i64(tokens[3], y1) ||
+                !parse_i64(tokens[4], x2) || !parse_i64(tokens[5], y2) || x1 < 0 || x1 >= 480 ||
+                y1 < 0 || y1 >= 480 || x2 < 0 || x2 >= 480 || y2 < 0 || y2 >= 480) {
+                return reply_error("ui-usage", "ui swipe <x1> <y1> <x2> <y2> (0..479)");
+            }
+            if (!display_.inject_swipe(static_cast<int>(x1), static_cast<int>(y1),
+                                       static_cast<int>(x2), static_cast<int>(y2))) {
+                return reply_error("ui-not-ready", "LVGL input is not ready");
+            }
+            reply("OK ui swipe x1=%lld y1=%lld x2=%lld y2=%lld", static_cast<long long>(x1),
+                  static_cast<long long>(y1), static_cast<long long>(x2),
+                  static_cast<long long>(y2));
             return;
         }
         if (tokens.size() == 4 && tokens[1] == "book") {
@@ -530,7 +556,9 @@ class SerialConsole {
             reply("OK ui book queued user=%s product=%s", tokens[2].c_str(), tokens[3].c_str());
             return;
         }
-        reply_error("ui-usage", "ui tap <x> <y> | ui book <user_id> <product_id>");
+        reply_error("ui-usage",
+                    "ui page | ui tap <x> <y> | ui swipe <x1> <y1> <x2> <y2> | "
+                    "ui book <user_id> <product_id>");
     }
 
     void cmd_book(const std::vector<std::string>& tokens) {

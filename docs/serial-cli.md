@@ -44,7 +44,9 @@ python3 tools/settime.py --epoch 1762819200 --source manual
 | `display info` | `OK display info rotation=<deg> brightness=<pct> active=<pct> idle=<pct> backlight=<0\|1> width=480 height=480 pclk_hz=<hz> hsync_pulse=<n> hsync_back=<n> hsync_front=<n> vsync_pulse=<n> vsync_back=<n> vsync_front=<n>` | Current display settings and RGB timing. |
 | `display rotation <0\|90\|180\|270>` | `OK display rotation <deg>` | Change and persist the display rotation. |
 | `display brightness <0..100>` | `OK display brightness <pct>` | Persist 5–100%; 0–4 is a temporary diagnostic level (0 = backlight off). |
+| `ui page` | `OK ui page <0\|1\|2>` | Current LVGL page (read-only). |
 | `ui tap <x> <y>` | `OK ui tap x=<x> y=<y>` | Test/HIL-only: inject a synthetic press/release at raw panel coordinates through the real LVGL indev/hit-test path. Requires the write unlock. |
+| `ui swipe <x1> <y1> <x2> <y2>` | `OK ui swipe x1=<x1> y1=<y1> x2=<x2> y2=<y2>` | Test/HIL-only: inject a press-drag-release gesture through the real LVGL indev. Requires the write unlock. |
 | `ui book <user_id> <product_id>` | `OK ui book queued user=<id> product=<id>` | Test/HIL-only: queue `debug_select_user` + `debug_book` on the LVGL task. Requires the write unlock. |
 | `ap start` | `OK ap start ttl=<seconds>` | Start the admin AP window (same policy as page 3). |
 | `ap stop` | `OK ap stop` | Stop the AP and clear admin sessions. |
@@ -57,7 +59,7 @@ python3 tools/settime.py --epoch 1762819200 --source manual
 | `void <event_id> [reason...]` | `OK void <event_id>` | Test/HIL-only reversal through the service. |
 | `reboot` | `OK reboot` | Reboot the device without erasing data. |
 
-`book`, `void`, `ui tap` and `ui book` are locked by default because they create
+`book`, `void`, `ui tap`, `ui swipe` and `ui book` are locked by default because they create
 real ledger events or can drive the UI/AP controls. Unlock them at runtime with
 the admin password, or build the firmware with `HIL_ALLOW_WRITES=1`. Read-only
 commands never print the admin/setup password unless `setup-password` is used,

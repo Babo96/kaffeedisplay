@@ -99,17 +99,22 @@ EspDisplay::~EspDisplay() {
     if (lvgl_ready_.load()) {
         if (lock(1000)) {
             destroy_test_pattern_locked();
+            if (indev_timer_ != nullptr) {
+                lv_timer_delete(indev_timer_);
+                indev_timer_ = nullptr;
+            }
             if (lv_indev_ != nullptr) {
                 lv_indev_delete(lv_indev_);
                 lv_indev_ = nullptr;
             }
             unlock();
         }
-        if (lv_display_ != nullptr) {
-            lvgl_port_remove_disp(lv_display_);
-            lv_display_ = nullptr;
-        }
+        // With avoid_tearing the LVGL draw buffers are the panel's two scanout
+        // frame buffers. lvgl_port_remove_disp() would free them and double-free
+        // the RGB panel's memory. The display is static for the firmware
+        // lifetime; stop the port task without removing the display.
         lvgl_port_deinit();
+        lv_display_ = nullptr;
         lvgl_ready_.store(false);
     }
 
@@ -280,11 +285,9 @@ Result<Unit> EspDisplay::init_panel() {
     rgb_config.clk_src = LCD_CLK_SRC_DEFAULT;
     rgb_config.data_width = 16;
     rgb_config.bits_per_pixel = 16;
-    // Single scanout framebuffer. esp_lvgl_port 2.9.0 can use the two RGB
-    // framebuffers for tear-free drawing only with avoid_tearing, but its
-    // remove_disp path frees those pointers, so software rotation uses one
-    // PSRAM FB plus two LVGL draw buffers instead.
-    rgb_config.num_fbs = 1;
+    // Two scanout framebuffers: esp_lvgl_port swaps them at VSYNC when
+    // avoid_tearing is enabled, so drawing never overlaps the visible frame.
+    rgb_config.num_fbs = 2;
     rgb_config.de_gpio_num = board::kPinLcdDe;
     rgb_config.pclk_gpio_num = board::kPinLcdPclk;
     rgb_config.vsync_gpio_num = board::kPinLcdVsync;
@@ -690,6 +693,25 @@ void EspDisplay::touch_read_cb(lv_indev_t* indev, lv_indev_data_t* data) {
     if (self == nullptr || data == nullptr) {
         return;
     }
+    if (self->synthetic_swipe_active_.load()) {
+        const int step = self->synthetic_swipe_step_.fetch_add(1);
+        const int steps = self->synthetic_swipe_steps_.load();
+        if (step <= steps) {
+            const int x0 = self->synthetic_swipe_x0_.load();
+            const int y0 = self->synthetic_swipe_y0_.load();
+            const int x1 = self->synthetic_swipe_x1_.load();
+            const int y1 = self->synthetic_swipe_y1_.load();
+            data->point.x = static_cast<int32_t>(x0 + (x1 - x0) * step / steps);
+            data->point.y = static_cast<int32_t>(y0 + (y1 - y0) * step / steps);
+            data->state = LV_INDEV_STATE_PRESSED;
+            data->continue_reading = false;
+            return;
+        }
+        self->synthetic_swipe_active_.store(false);
+        data->state = LV_INDEV_STATE_RELEASED;
+        data->continue_reading = false;
+        return;
+    }
     if (self->synthetic_touch_pending_.exchange(false)) {
         data->point.x = self->synthetic_touch_x_.load();
         data->point.y = self->synthetic_touch_y_.load();
@@ -706,9 +728,23 @@ void EspDisplay::touch_read_cb(lv_indev_t* indev, lv_indev_data_t* data) {
 
 bool EspDisplay::inject_touch(int x, int y) {
     if (!lvgl_ready_.load() || lv_indev_ == nullptr) return false;
+    synthetic_swipe_active_.store(false);
     synthetic_touch_x_.store(static_cast<uint16_t>(clamp_int(x, 0, kWidth - 1)));
     synthetic_touch_y_.store(static_cast<uint16_t>(clamp_int(y, 0, kHeight - 1)));
     synthetic_touch_pending_.store(true);
+    return true;
+}
+
+bool EspDisplay::inject_swipe(int x1, int y1, int x2, int y2) {
+    if (!lvgl_ready_.load() || lv_indev_ == nullptr) return false;
+    synthetic_touch_pending_.store(false);
+    synthetic_swipe_x0_.store(clamp_int(x1, 0, kWidth - 1));
+    synthetic_swipe_y0_.store(clamp_int(y1, 0, kHeight - 1));
+    synthetic_swipe_x1_.store(clamp_int(x2, 0, kWidth - 1));
+    synthetic_swipe_y1_.store(clamp_int(y2, 0, kHeight - 1));
+    synthetic_swipe_steps_.store(12);
+    synthetic_swipe_step_.store(0);
+    synthetic_swipe_active_.store(true);
     return true;
 }
 
@@ -904,7 +940,9 @@ Result<Unit> EspDisplay::apply_settings(const DisplaySettings& settings) {
     const int previous_rotation = rotation_.load();
     if (next.rotation != previous_rotation) {
         if (lvgl_ready_.load()) {
-            if (!lock(1000)) {
+            // Direct full-frame flushes can hold the LVGL lock across a VSYNC
+            // wait; allow a few frames for a rotation change.
+            if (!lock(3000)) {
                 return Result<Unit>::fail("board/display_busy",
                                           "LVGL did not yield for rotation change");
             }
@@ -978,10 +1016,10 @@ Result<Unit> EspDisplay::init_lvgl() {
 
     lvgl_port_display_cfg_t display_config = {};
     display_config.panel_handle = panel_;
-    display_config.buffer_size = static_cast<uint32_t>(kWidth) * 120U;  // quarter screen
-    // Two LVGL draw buffers (software double-buffered rendering); scanout is a
-    // single RGB framebuffer, so this is not tear-free scanout double buffering.
-    display_config.double_buffer = true;
+    // Full-screen buffers are required by the avoid_tearing RGB path; the two
+    // RGB panel frame buffers are handed directly to LVGL.
+    display_config.buffer_size = static_cast<uint32_t>(kWidth) * kHeight;
+    display_config.double_buffer = false;
     display_config.hres = kWidth;
     display_config.vres = kHeight;
     display_config.monochrome = false;
@@ -994,11 +1032,14 @@ Result<Unit> EspDisplay::init_lvgl() {
     display_config.flags.sw_rotate = true;
     display_config.flags.swap_bytes = false;
     display_config.flags.full_refresh = false;
-    display_config.flags.direct_mode = false;
+    display_config.flags.direct_mode = true;
 
     lvgl_port_display_rgb_cfg_t rgb_config = {};
     rgb_config.flags.bb_mode = false;
-    rgb_config.flags.avoid_tearing = false;
+    // Swap the two panel FBs at VSYNC and wait for the transfer semaphore in the
+    // flush callback. This is tear-free at rotation 0; sw_rotate uses a third
+    // buffer for 90/180/270 and falls back to the non-swapped copy path.
+    rgb_config.flags.avoid_tearing = true;
 
     lv_display_ = lvgl_port_add_disp_rgb(&display_config, &rgb_config);
     if (lv_display_ == nullptr) {
@@ -1021,6 +1062,10 @@ Result<Unit> EspDisplay::init_lvgl() {
     lv_indev_set_read_cb(lv_indev_, &EspDisplay::touch_read_cb);
     lv_indev_set_user_data(lv_indev_, this);
     lv_indev_set_display(lv_indev_, lv_display_);
+    // Direct/avoid-tearing keeps the LVGL task busy in full-frame flushes; the
+    // port's implicit indev timer is not serviced reliably. Poll the real indev
+    // from an explicit timer so touch and injected gestures keep working.
+    indev_timer_ = lv_timer_create(&EspDisplay::indev_poll_cb, 30, this);
 
     apply_rotation_locked(settings_.rotation);
     rotation_.store(settings_.rotation);
@@ -1036,7 +1081,7 @@ Result<Unit> EspDisplay::show_test_pattern() {
         return Result<Unit>::fail("board/lvgl_not_ready", "LVGL is not initialized");
     }
     wake();
-    if (!lock(1000)) {
+    if (!lock(3000)) {
         return Result<Unit>::fail("board/display_busy", "LVGL did not yield for test pattern");
     }
 
@@ -1120,6 +1165,13 @@ Result<Unit> EspDisplay::show_test_pattern() {
     unlock();
     ESP_LOGI(kTag, "display test pattern shown for 15 s (rotation %d)", rotation_.load());
     return Result<Unit>::ok(Unit{});
+}
+
+void EspDisplay::indev_poll_cb(lv_timer_t* timer) {
+    auto* self = static_cast<EspDisplay*>(lv_timer_get_user_data(timer));
+    if (self != nullptr && self->lv_indev_ != nullptr) {
+        lv_indev_read(self->lv_indev_);
+    }
 }
 
 void EspDisplay::test_touch_timer_cb(lv_timer_t* timer) {

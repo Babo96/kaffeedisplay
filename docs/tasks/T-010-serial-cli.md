@@ -195,6 +195,32 @@ test events were voided afterwards.
   failure returns `ERR ui-queue`; `inject_touch` returns false before UI ready;
   `status` reports internal heap min/largest, LVGL and HTTPD high-water.
 
+
+## Tear-free page swipes (follow-up)
+
+Page swipes showed diagonal tearing because scanout read the single PSRAM
+framebuffer while LVGL drew into it. Implemented the `esp_lvgl_port` 2.9.0
+`avoid_tearing` path:
+
+- `rgb_config.num_fbs = 2` (two 480×480 RGB565 PSRAM FBs, ~900 KiB total),
+  five-line internal bounce buffer retained.
+- Full-screen `lvgl_port_display_cfg_t.buffer_size`, `direct_mode = true`,
+  `double_buffer = false`, and `rgb_config.flags.avoid_tearing = true`.
+- The flush swaps the panel FB and waits on the port's transfer semaphore
+  (`on_vsync` gives it from the RGB ISR). Rotation 0 is tear-free; 90/180/270
+  use the software-rotation buffer + copy path and are only functionally safe.
+- `lvgl_port_remove_disp()` is intentionally skipped; it would free the panel
+  FBs. Destructor calls `lvgl_port_deinit()` only.
+- Direct full-frame flushes starved the implicit LVGL indev timer, so the board
+  polls `lv_indev_read()` from an explicit 30 ms timer; physical and injected
+  touch work again.
+- Added `ui swipe <x1> <y1> <x2> <y2>` (write-gated) and read-only `ui page`.
+  A completed drag changes tileview pages; rotation changes were exercised.
+- 5-minute soak: 20 page swipes + 6 UI bookings, `heap_internal_free` stable at
+  ~160 KiB, `lvgl_stack_free` 6448 B, no abort/reboot. Webcam `/dev/video0`
+  disappeared from USB during the test, so the requested 60 fps visual frame
+  comparison could not be captured; functional and code-path evidence only.
+
 ## Evidence
 
 - `make test-host`: 141 cases / 27,448 assertions pass (includes 5000×
