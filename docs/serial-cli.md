@@ -36,7 +36,7 @@ python3 tools/settime.py --epoch 1762819200 --source manual
 | Command | Reply | Purpose |
 |---|---|---|
 | `help` | `OK help commands=...` | List commands (one line). |
-| `status` | `OK status seq=<n> users=<n> users_active=<n> products=<n> products_active=<n> time=<epoch> time_source=<src> time_trusted=<0\|1> ap=<on\|off\|starting> ap_ip=<ip> sta=<on\|off> sta_ip=<ip> uptime_s=<n> heap_free=<n> heap_min=<n> psram_free=<n> psram_total=<n> storage_used=<n> storage_total=<n> storage_mounted=<0\|1> firmware=<version> drinks_today=<n>` | Ledger, system and interface summary. |
+| `status` | `OK status seq=<n> users=<n> users_active=<n> products=<n> products_active=<n> time=<epoch> time_source=<src> time_trusted=<0\|1> ap=<on\|off\|starting> ap_ip=<ip> sta=<on\|off> sta_ip=<ip> uptime_s=<n> heap_free=<n> heap_min=<n> heap_internal_free=<n> psram_free=<n> psram_total=<n> lvgl_stack_free=<n> storage_used=<n> storage_total=<n> storage_mounted=<0\|1> firmware=<version> drinks_today=<n>` | Ledger, system and interface summary. `lvgl_stack_free` is the taskLVGL high-water mark in bytes. |
 | `ap` | `OK ap state=<on\|off\|starting> ssid=<ssid> [password=<pw>] ip=<ip> remaining_s=<n> sta=<on\|off>` | AP state. `password` is only present while the AP is active. |
 | `time` | `OK time <epoch> source=<src> trusted=<0\|1> last_sync=<epoch>` | Read the device clock. |
 | `time set <epoch> [source]` | `OK time set <epoch>` | Set UTC seconds; source is `manual`, `browser` or `sntp` (default `manual`). |
@@ -44,6 +44,8 @@ python3 tools/settime.py --epoch 1762819200 --source manual
 | `display info` | `OK display info rotation=<deg> brightness=<pct> active=<pct> idle=<pct> backlight=<0\|1> width=480 height=480 pclk_hz=<hz> hsync_pulse=<n> hsync_back=<n> hsync_front=<n> vsync_pulse=<n> vsync_back=<n> vsync_front=<n>` | Current display settings and RGB timing. |
 | `display rotation <0\|90\|180\|270>` | `OK display rotation <deg>` | Change and persist the display rotation. |
 | `display brightness <0..100>` | `OK display brightness <pct>` | Persist 5–100%; 0–4 is a temporary diagnostic level (0 = backlight off). |
+| `ui tap <x> <y>` | `OK ui tap x=<x> y=<y>` | Inject a synthetic press/release at raw panel coordinates through the real LVGL indev/hit-test path. |
+| `ui book <user_id> <product_id>` | `OK ui book queued user=<id> product=<id>` | Queue `debug_select_user` + `debug_book` on the LVGL task (same path as a touch booking). |
 | `ap start` | `OK ap start ttl=<seconds>` | Start the admin AP window (same policy as page 3). |
 | `ap stop` | `OK ap stop` | Stop the AP and clear admin sessions. |
 | `ap extend [<seconds>]` | `OK ap extend ttl=<seconds>` | Extend the AP window (default 900 s, max 86400 s). |

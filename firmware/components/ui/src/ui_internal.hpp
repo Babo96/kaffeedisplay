@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <cstdint>
 #include <map>
 #include <mutex>
@@ -100,6 +101,7 @@ class UiAppImpl final : public UiApp, public UiControl {
     void remove_test_pattern();
 
     std::string next_request_id(const char* prefix);
+    uint64_t book_catalog_fingerprint() const;
 
     static void housekeeping_cb(lv_timer_t* timer);
     static void test_timeout_cb(lv_timer_t* timer);
@@ -122,6 +124,9 @@ class UiAppImpl final : public UiApp, public UiControl {
 
     IUiBackend& backend_;
     ChangeQueue queue_;
+    // UI-originated writes update their visible widgets in place; suppress the
+    // service change callback once so they do not trigger a full page rebuild.
+    std::atomic<bool> suppress_change_{false};
     uint32_t request_counter_ = 0;
     bool started_ = false;
 
@@ -136,6 +141,8 @@ class UiAppImpl final : public UiApp, public UiControl {
 
     // Page 1
     lv_obj_t* book_body_ = nullptr;
+    lv_obj_t* balance_label_ = nullptr;
+    uint64_t last_book_fingerprint_ = 0;
     std::string selected_user_id_;
     bool guest_mode_ = false;
     std::map<std::string, uint32_t> last_book_tick_;
@@ -150,6 +157,7 @@ class UiAppImpl final : public UiApp, public UiControl {
     lv_obj_t* stats_warning_ = nullptr;
     lv_obj_t* stats_guest_label_ = nullptr;
     int month_offset_ = 0;
+    bool stats_dirty_ = false;
 
     // Page 3
     lv_obj_t* system_body_ = nullptr;
@@ -167,6 +175,7 @@ class UiAppImpl final : public UiApp, public UiControl {
     bool last_sta_connected_ = false;
     bool last_time_trusted_ = false;
     bool last_must_change_ = false;
+    bool system_dirty_ = false;
     DisplaySettings last_display_;
 
     bool ap_hold_active_ = false;

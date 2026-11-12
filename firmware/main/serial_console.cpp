@@ -1,22 +1,26 @@
 #include "serial_console.hpp"
 
 #include <algorithm>
+#include <atomic>
 #include <cerrno>
 #include <cstdarg>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include "kaffee/board_esp.hpp"
+#include "kaffee/ui_control.hpp"
 
 #include "driver/uart.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "esp_system.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/idf_additions.h"
 #include "freertos/task.h"
 #include "nvs.h"
 
@@ -96,8 +100,13 @@ const char* time_source_name(const TimeInfo& time) {
 
 class SerialConsole {
   public:
-    SerialConsole(KaffeeService& service, IPlatform& platform, EspDisplay& display)
-        : service_(service), platform_(platform), display_(display) {}
+    SerialConsole(KaffeeService& service, IPlatform& platform, EspDisplay& display,
+                  ui::UiControl* ui_control)
+        : service_(service), platform_(platform), display_(display), ui_control_(ui_control) {}
+
+    void set_ui_control(ui::UiControl* ui_control) {
+        ui_control_.store(ui_control);
+    }
 
     void run() {
         if (!install_uart()) return;
@@ -254,6 +263,7 @@ class SerialConsole {
         if (command == "setup-password") return cmd_setup_password();
         if (command == "time") return cmd_time(tokens);
         if (command == "display") return cmd_display(tokens);
+        if (command == "ui") return cmd_ui(tokens);
         if (command == "book") return cmd_book(tokens);
         if (command == "void") return cmd_void(tokens);
         if (command == "unlock-writes") return cmd_unlock_writes(tokens);
@@ -265,7 +275,7 @@ class SerialConsole {
 
     void cmd_help() {
         reply(
-            "OK help commands=help,status,ap,setup-password,time,display,book,void,"
+            "OK help commands=help,status,ap,setup-password,time,display,ui,book,void,"
             "unlock-writes,backup,factory-reset,reboot");
     }
 
@@ -290,21 +300,27 @@ class SerialConsole {
             stats.firmware_version.empty() ? "unknown" : stats.firmware_version.c_str();
         const uint32_t psram_total =
             static_cast<uint32_t>(heap_caps_get_total_size(MALLOC_CAP_SPIRAM));
+        const uint32_t internal_free =
+            static_cast<uint32_t>(heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
+        TaskHandle_t lvgl_task = xTaskGetHandle("taskLVGL");
+        const uint32_t lvgl_stack_free =
+            lvgl_task != nullptr ? static_cast<uint32_t>(uxTaskGetStackHighWaterMark(lvgl_task))
+                                 : 0;
 
         reply(
             "OK status seq=%llu users=%u users_active=%d products=%u products_active=%d "
             "time=%lld time_source=%s time_trusted=%d ap=%s ap_ip=%s sta=%s sta_ip=%s "
-            "uptime_s=%llu heap_free=%u heap_min=%u psram_free=%u psram_total=%u "
-            "storage_used=%llu storage_total=%llu storage_mounted=%d firmware=%s "
-            "drinks_today=%d",
+            "uptime_s=%llu heap_free=%u heap_min=%u heap_internal_free=%u psram_free=%u "
+            "psram_total=%u lvgl_stack_free=%u storage_used=%llu storage_total=%llu "
+            "storage_mounted=%d firmware=%s drinks_today=%d",
             static_cast<unsigned long long>(seq), static_cast<unsigned>(users.size()), active_users,
             static_cast<unsigned>(products.size()), active_products,
             static_cast<long long>(stats.time.now), time_source_name(stats.time),
             stats.time.trusted ? 1 : 0, ap, network.ap_ip.c_str(), sta, network.sta_ip.c_str(),
             static_cast<unsigned long long>(stats.uptime_s), static_cast<unsigned>(stats.free_heap),
-            static_cast<unsigned>(stats.min_free_heap), static_cast<unsigned>(stats.free_psram),
-            static_cast<unsigned>(psram_total),
-            static_cast<unsigned long long>(stats.storage.used_bytes),
+            static_cast<unsigned>(stats.min_free_heap), internal_free,
+            static_cast<unsigned>(stats.free_psram), static_cast<unsigned>(psram_total),
+            lvgl_stack_free, static_cast<unsigned long long>(stats.storage.used_bytes),
             static_cast<unsigned long long>(stats.storage.total_bytes),
             stats.storage.mounted ? 1 : 0, firmware, stats.drinks_today);
     }
@@ -453,6 +469,49 @@ class SerialConsole {
             timing.vsync_front_porch);
     }
 
+    struct UiBookRequest {
+        ui::UiControl* ui = nullptr;
+        std::string user_id;
+        std::string product_id;
+    };
+
+    static void ui_book_async(void* argument) {
+        std::unique_ptr<UiBookRequest> request(static_cast<UiBookRequest*>(argument));
+        if (request == nullptr || request->ui == nullptr) return;
+        request->ui->debug_select_user(request->user_id);
+        request->ui->debug_book(request->product_id);
+    }
+
+    void cmd_ui(const std::vector<std::string>& tokens) {
+        if (tokens.size() >= 2 && tokens[1] == "tap") {
+            int64_t x = 0;
+            int64_t y = 0;
+            if (tokens.size() != 4 || !parse_i64(tokens[2], x) || !parse_i64(tokens[3], y) ||
+                x < 0 || x >= 480 || y < 0 || y >= 480) {
+                return reply_error("ui-usage", "ui tap <x 0..479> <y 0..479>");
+            }
+            display_.inject_touch(static_cast<int>(x), static_cast<int>(y));
+            reply("OK ui tap x=%lld y=%lld", static_cast<long long>(x), static_cast<long long>(y));
+            return;
+        }
+        if (tokens.size() == 4 && tokens[1] == "book") {
+            ui::UiControl* ui = ui_control_.load();
+            if (ui == nullptr) return reply_error("ui-not-ready", "UI app is not running");
+            auto request = std::make_unique<UiBookRequest>();
+            request->ui = ui;
+            request->user_id = tokens[2];
+            request->product_id = tokens[3];
+            if (!display_.lock(1000)) {
+                return reply_error("display-busy", "LVGL did not yield");
+            }
+            lv_async_call(&SerialConsole::ui_book_async, request.release());
+            display_.unlock();
+            reply("OK ui book queued user=%s product=%s", tokens[2].c_str(), tokens[3].c_str());
+            return;
+        }
+        reply_error("ui-usage", "ui tap <x> <y> | ui book <user_id> <product_id>");
+    }
+
     void cmd_book(const std::vector<std::string>& tokens) {
         if (!writes_allowed()) {
             return reply_error("writes-disabled",
@@ -567,6 +626,7 @@ class SerialConsole {
     KaffeeService& service_;
     IPlatform& platform_;
     EspDisplay& display_;
+    std::atomic<ui::UiControl*> ui_control_{nullptr};
     TickType_t writes_until_ = 0;
     bool reset_pending_ = false;
     TickType_t reset_deadline_ = 0;
@@ -580,17 +640,29 @@ void serial_task(void* argument) {
 
 }  // namespace
 
-bool start_serial_console(KaffeeService& service, IPlatform& platform, EspDisplay& display) {
-    static SerialConsole console(service, platform, display);
-    // Keep this stack in internal RAM: commands such as display brightness and
-    // factory reset write NVS/flash, during which a PSRAM stack is not safely
-    // accessible. The RGB bounce buffers leave just enough internal RAM for
-    // 12 KiB here.
-    if (xTaskCreate(serial_task, "serial_cli", 12288, &console, 3, nullptr) != pdPASS) {
+namespace {
+SerialConsole* g_console = nullptr;
+}
+
+bool start_serial_console(KaffeeService& service, IPlatform& platform, EspDisplay& display,
+                          ui::UiControl* ui_control) {
+    static SerialConsole console(service, platform, display, ui_control);
+    g_console = &console;
+    // Start after the network but before the UI. Reserve the stack in .bss so
+    // it is guaranteed internal, contiguous and available after flash-cache
+    // operations. The UI control pointer is attached later.
+    static StaticTask_t task_buffer;
+    static StackType_t task_stack[12288];
+    if (xTaskCreateStatic(serial_task, "serial_cli", sizeof(task_stack), &console, 3, task_stack,
+                          &task_buffer) == nullptr) {
         ESP_LOGE(kTag, "cannot create serial console task");
         return false;
     }
     return true;
+}
+
+void set_serial_console_ui(ui::UiControl* ui_control) {
+    if (g_console != nullptr) g_console->set_ui_control(ui_control);
 }
 
 }  // namespace kaffee

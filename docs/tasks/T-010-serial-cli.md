@@ -67,7 +67,7 @@ tests therefore could not run against a real board.
    `/device` both showed 1 then 0.
 3. **HTTP task stack overflow (found during validation).** Creating a product
    through the API overflowed the `httpd` task at 10 KiB and rebooted the board.
-   The server stack is now 24 KiB; the ineffective
+   The server stack is 12 KiB; the ineffective
    `CONFIG_HTTPD_TASK_STACK_SIZE` line was removed from `sdkconfig.defaults`.
 
 
@@ -84,11 +84,54 @@ Fix: five-line internal-RAM bounce buffer (`bounce_buffer_size_px = 5 * 480`)
 with the PSRAM framebuffer still enabled, plus the known-good Guition timing
 `12 MHz, HSYNC 8/50/10, VSYNC 8/20/10`. Measured crosshair shift dropped from
 +72.4 px to about +8 px; page dots are centred and page 1 has no edge clipping.
-The HTTP server stack was reduced from 24 KiB to 16 KiB to make room for the
-12 KiB serial-console stack; product creation was re-tested through the API
-(201, no panic).
+The HTTP server stack is 12 KiB to make room for the 16 KiB LVGL and 12 KiB
+serial-console stacks; product creation was re-tested through the API (201, no
+panic). LVGL uses the C library allocator instead of its 64 KiB internal pool,
+Wi-Fi uses eight static RX buffers, and mDNS lives in PSRAM. `status` shows the
+internal heap and LVGL stack high-water so this can be watched.
 Final webcam frames: `/tmp/opencode/t010-display/final-test.jpg`,
-`/tmp/opencode/t010-display/final-page1-bounce6.jpg`.
+`/tmp/opencode/t010-display/final-page1-bounce5.jpg`.
+
+
+## UI booking crash (follow-up)
+
+Selecting a user and then tapping a beverage crashed/rebooted the device while
+`book` over serial stayed healthy. Reproduction through the new
+`ui book <user_id> <product_id>` command at the old 8 KiB LVGL task stack
+produced:
+
+```text
+***ERROR*** A stack overflow in task taskLVGL has been detected.
+Backtrace: ... |<-CORRUPTED
+Rebooting...
+```
+
+Root causes fixed:
+
+1. `esp_lvgl_port` task stack was 8192 bytes; the full page refresh after a
+   booking used about 9.4 KiB. Raised to 16384 bytes. `status` now reports
+   `lvgl_stack_free`; after 10+ bookings/refreshes it settles around 6488 bytes
+   free.
+2. Selecting/clearing a user rebuilt page 1 synchronously from inside the
+   card/button click callback, so `lv_obj_clean()` deleted the object currently
+   dispatching the event. `select_user()`, `select_guest()` and
+   `clear_selection()` now only update state and `queue_.push()`; the existing
+   housekeeping timer performs the rebuild on the next LVGL tick.
+3. The booking hot path now updates the visible balance and toast in place and
+   suppresses the service change callback once, so it does not rebuild page 1.
+   External topups/voids update the balance in place when a catalog fingerprint
+   shows that users/products did not change; hidden stats/system pages are
+   marked dirty and refreshed when entered. This stopped the repeated
+   object-churn/internal-heap drain seen under serial `void` stress.
+4. The final memory split is: 16 KiB LVGL stack, 12 KiB console stack (static
+   internal), 12 KiB HTTP stack, five-line RGB bounce buffer, LVGL CLIB malloc
+   with allocations above 1 KiB preferring PSRAM, Wi-Fi 8 static RX buffers,
+   mDNS task/memory in PSRAM. This boots, starts the AP/HTTP server, survives
+   10+ UI bookings, and keeps `status`/flash commands working.
+
+Diagnostics: `ui tap <x> <y>` injects a press into the real LVGL indev callback;
+`ui book <user_id> <product_id>` queues `debug_select_user` + `debug_book` on
+the LVGL task. Both were exercised without a panic.
 
 ## Evidence
 

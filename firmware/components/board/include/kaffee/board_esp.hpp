@@ -75,6 +75,10 @@ class EspDisplay final : public IDisplay {
     // Keeps the panel awake while an AP/QR session is active. The UI/net layer
     // should call this with true when the AP starts and false when it stops.
     void set_stay_awake(bool stay_awake);
+    // Inject a synthetic press into the real LVGL indev read callback. The next
+    // callback returns PRESSED, the following one RELEASED, so LVGL runs its
+    // normal hit-test/click path. Coordinates are raw panel coordinates.
+    void inject_touch(int x, int y);
 
     // Direct framebuffer colour test used for bring-up diagnostics. It does
     // not touch LVGL and leaves eight vertical colour bars on the panel.
@@ -159,6 +163,9 @@ class EspDisplay final : public IDisplay {
     std::atomic<int> power_state_{static_cast<int>(PowerState::Off)};
     std::atomic<bool> lvgl_ready_{false};
     std::atomic<bool> touch_present_{false};
+    std::atomic<bool> synthetic_touch_pending_{false};
+    std::atomic<uint16_t> synthetic_touch_x_{0};
+    std::atomic<uint16_t> synthetic_touch_y_{0};
     std::atomic<bool> running_{false};
     bool stay_awake_ = false;
     std::atomic<int> task_count_{0};

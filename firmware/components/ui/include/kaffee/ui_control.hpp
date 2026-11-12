@@ -4,6 +4,8 @@
 
 namespace kaffee::ui {
 
+class UiApp;
+
 // Optional control surface implemented by the LVGL app and used by the host
 // simulator and screenshot tooling. It is deliberately separate from the
 // frozen ui.hpp contract: firmware only needs UiApp, while tests can switch
@@ -19,5 +21,9 @@ class UiControl {
     virtual void debug_book(const std::string& product_id) = 0;
     virtual void debug_deselect() = 0;
 };
+
+// Returns the control surface for the concrete UiApp implementation. Firmware
+// creates UiAppImpl, so the static cast is valid; returns null for a null app.
+UiControl* control_for(UiApp* app);
 
 }  // namespace kaffee::ui

@@ -65,6 +65,10 @@ Result<std::unique_ptr<UiApp>> UiApp::create(IUiBackend& backend) {
     return Result<std::unique_ptr<UiApp>>::ok(std::move(app));
 }
 
+UiControl* control_for(UiApp* app) {
+    return app == nullptr ? nullptr : static_cast<UiAppImpl*>(app);
+}
+
 UiAppImpl::UiAppImpl(IUiBackend& backend) : backend_(backend) {}
 
 UiAppImpl::~UiAppImpl() {
@@ -92,7 +96,10 @@ UiAppImpl::~UiAppImpl() {
 void UiAppImpl::start() {
     if (started_) return;
     build();
-    backend_.set_change_callback([this]() { queue_.push(); });
+    backend_.set_change_callback([this]() {
+        if (suppress_change_.exchange(false)) return;
+        queue_.push();
+    });
     housekeeping_timer_ = lv_timer_create(&UiAppImpl::housekeeping_cb, 100, this);
     started_ = true;
     last_book_activity_ = lv_tick_get();
@@ -234,12 +241,19 @@ void UiAppImpl::hide_toast() {
 
 void UiAppImpl::undo_last_booking() {
     if (toast_event_id_.empty()) return;
+    suppress_change_.store(true);
     Result<Event> result = backend_.undo_booking(toast_event_id_, next_request_id("undo"));
     if (result) {
         hide_toast();
         show_toast(strings::BOOK_UNDONE, false, "", kToastInfoMs);
-        queue_.push();
+        if (balance_label_ != nullptr) {
+            lv_label_set_text(balance_label_,
+                              format_balance(backend_.balance(selected_user_id_)).c_str());
+        }
+        stats_dirty_ = true;
+        system_dirty_ = true;
     } else {
+        suppress_change_.store(false);
         show_toast(strings::BOOK_UNDO_FAILED, false, "", kToastInfoMs);
     }
 }
@@ -248,21 +262,24 @@ void UiAppImpl::clear_selection() {
     selected_user_id_.clear();
     guest_mode_ = false;
     last_book_activity_ = lv_tick_get();
-    refresh_book_page();
+    // Never rebuild the page from inside the card/button click callback that
+    // selected it: lv_obj_clean() would delete the object currently dispatching
+    // the event. Housekeeping drains the queue on the next LVGL tick.
+    queue_.push();
 }
 
 void UiAppImpl::select_user(const User& user) {
     selected_user_id_ = user.id;
     guest_mode_ = false;
     last_book_activity_ = lv_tick_get();
-    refresh_book_page();
+    queue_.push();
 }
 
 void UiAppImpl::select_guest() {
     selected_user_id_.clear();
     guest_mode_ = true;
     last_book_activity_ = lv_tick_get();
-    refresh_book_page();
+    queue_.push();
 }
 
 void UiAppImpl::book_product(const Product& product) {
@@ -280,10 +297,12 @@ void UiAppImpl::book_product(const Product& product) {
 
     if (!guest_mode_ && selected_user_id_.empty()) return;
 
+    suppress_change_.store(true);
     Result<Event> result =
         guest_mode_ ? backend_.guest_sale(product.id, next_request_id("guest"))
                     : backend_.purchase(selected_user_id_, product.id, next_request_id("book"));
     if (!result) {
+        suppress_change_.store(false);
         show_toast(strings::BOOK_FAILED, false, "", kToastInfoMs);
         return;
     }
@@ -295,13 +314,54 @@ void UiAppImpl::book_product(const Product& product) {
                strings::COMMON_SEPARATOR + format_money(event.unit_amount_cents);
         show_toast(text, false, "", kToastInfoMs);
     } else {
+        const Cents saldo = backend_.balance(selected_user_id_);
         text = event.product_name + strings::BOOK_TOAST_SEPARATOR +
                format_money(event.unit_amount_cents) + strings::BOOK_TOAST_SEPARATOR +
-               strings::BOOK_BALANCE + " " + format_money(backend_.balance(selected_user_id_));
+               strings::BOOK_BALANCE + " " + format_money(saldo);
+        // Update the visible balance immediately; the queued refresh handles
+        // stats/leaderboard off the booking event callback.
+        if (balance_label_ != nullptr) {
+            lv_label_set_text(balance_label_, format_balance(saldo).c_str());
+        }
         show_toast(text, true, event.id, kToastUndoMs);
     }
     last_book_activity_ = now;
-    queue_.push();
+    // The balance/toast were updated in place above. Do not rebuild page 1 from
+    // the booking event callback; hidden pages refresh when they are entered.
+    stats_dirty_ = true;
+    system_dirty_ = true;
+}
+
+uint64_t UiAppImpl::book_catalog_fingerprint() const {
+    uint64_t hash = 1469598103934665603ull;
+    auto mix = [&hash](uint64_t value) {
+        hash ^= value;
+        hash *= 1099511628211ull;
+    };
+    auto mix_text = [&mix](const std::string& text) {
+        for (unsigned char c : text) mix(c);
+        mix(0xff);
+    };
+    mix(selected_user_id_.empty() ? 0 : 1);
+    mix_text(selected_user_id_);
+    mix(guest_mode_ ? 1 : 0);
+    for (const User& user : backend_.users()) {
+        if (!user.active) continue;
+        mix_text(user.id);
+        mix_text(user.name);
+        mix_text(user.color);
+    }
+    for (const Product& product : backend_.products()) {
+        if (!product.active) continue;
+        mix_text(product.id);
+        mix_text(product.name);
+        mix_text(product.category);
+        mix_text(product.icon);
+        mix_text(product.color);
+        mix(static_cast<uint64_t>(product.price_cents));
+        mix(static_cast<uint64_t>(product.sort));
+    }
+    return hash;
 }
 
 void UiAppImpl::refresh_data() {
@@ -313,9 +373,27 @@ void UiAppImpl::refresh_data() {
             guest_mode_ = false;
         }
     }
-    refresh_book_page();
-    refresh_stats_page();
-    refresh_system_page();
+    const uint64_t fingerprint = book_catalog_fingerprint();
+    if (fingerprint != last_book_fingerprint_) {
+        refresh_book_page();
+    } else if (balance_label_ != nullptr && !selected_user_id_.empty()) {
+        // Topups/voids from the API/serial CLI change only the balance; update
+        // the visible label instead of rebuilding the whole page.
+        lv_label_set_text(balance_label_,
+                          format_balance(backend_.balance(selected_user_id_)).c_str());
+    }
+    if (current_page_ == 1) {
+        refresh_stats_page();
+        stats_dirty_ = false;
+    } else {
+        stats_dirty_ = true;
+    }
+    if (current_page_ == 2) {
+        refresh_system_page();
+        system_dirty_ = false;
+    } else {
+        system_dirty_ = true;
+    }
     update_headers();
 }
 
@@ -348,6 +426,14 @@ void UiAppImpl::show_page(int index, bool animate) {
                                   animate ? LV_ANIM_ON : LV_ANIM_OFF);
     current_page_ = index;
     page_entered_at_ = lv_tick_get();
+    if (index == 1 && stats_dirty_) {
+        refresh_stats_page();
+        stats_dirty_ = false;
+    }
+    if (index == 2 && system_dirty_) {
+        refresh_system_page();
+        system_dirty_ = false;
+    }
     update_dots();
 }
 

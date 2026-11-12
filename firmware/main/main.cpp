@@ -17,6 +17,7 @@
 #include "kaffee/service.hpp"
 #include "kaffee/ui.hpp"
 #include "kaffee/ui_board_adapter.hpp"
+#include "kaffee/ui_control.hpp"
 #include "kaffee/web_assets.hpp"
 #include "lvgl.h"
 #include "nvs_flash.h"
@@ -215,6 +216,28 @@ extern "C" void app_main(void) {
         log_failure("display settings apply", *applied.error);
     }
 
+    // Bring the network up before the UI and console stack allocations. The DNS
+    // task needs a contiguous internal-RAM stack; the 12 KiB console and the
+    // LVGL page objects must not fragment it first.
+    if (auto initialized = network.init(); !initialized) {
+        log_failure("network init", *initialized.error);
+    } else {
+        state.network = true;
+        if (auto applied = network.apply_settings(boot_settings.network); !applied) {
+            log_failure("network settings apply", *applied.error);
+        }
+        if (auto applied = network.apply_time_settings(boot_settings.time); !applied) {
+            log_failure("time settings apply", *applied.error);
+        }
+    }
+
+    // Start the recovery console after the network is up but before the UI
+    // builds its page objects. Its 12 KiB internal stack must not be fragmented
+    // by LVGL allocations; commands remain valid once boot completes.
+    if (start_serial_console(*service, platform, *display, nullptr)) {
+        ESP_LOGI(kTag, "serial console started");
+    }
+
     // The UI is created and started under the LVGL lock; all subsequent LVGL
     // calls happen on the esp_lvgl_port task through its timers.
     static kaffee::ui::BoardDisplayPort display_port(
@@ -257,17 +280,7 @@ extern "C" void app_main(void) {
     }
     state.api = api_server != nullptr && api_controller_started;
 
-    if (auto initialized = network.init(); !initialized) {
-        log_failure("network init", *initialized.error);
-    } else {
-        state.network = true;
-        if (auto applied = network.apply_settings(boot_settings.network); !applied) {
-            log_failure("network settings apply", *applied.error);
-        }
-        if (auto applied = network.apply_time_settings(boot_settings.time); !applied) {
-            log_failure("time settings apply", *applied.error);
-        }
-
+    if (state.network) {
         // Set the listener after init so the network timer task delivers the
         // initial availability notification to the API worker.
         if (api_controller != nullptr) network.set_listener(api_controller);
@@ -308,9 +321,8 @@ extern "C" void app_main(void) {
     // The serial console is the recovery/HIL interface. Start it after the
     // network so `status`/`ap` reflect the real interface state. It never calls
     // LVGL; all commands go through the service/platform facades.
-    if (start_serial_console(*service, platform, *display)) {
-        ESP_LOGI(kTag, "serial console started");
-    }
+    kaffee::ui::UiControl* ui_control = kaffee::ui::control_for(ui_app.get());
+    kaffee::set_serial_console_ui(ui_control);
 
     const kaffee::BoardStats stats = display->stats();
     ESP_LOGI(kTag, "uptime %llu s, heap %u B (min %u B), PSRAM %u/%u B, touch %s",

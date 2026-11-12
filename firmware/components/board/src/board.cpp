@@ -690,11 +690,24 @@ void EspDisplay::touch_read_cb(lv_indev_t* indev, lv_indev_data_t* data) {
     if (self == nullptr || data == nullptr) {
         return;
     }
+    if (self->synthetic_touch_pending_.exchange(false)) {
+        data->point.x = self->synthetic_touch_x_.load();
+        data->point.y = self->synthetic_touch_y_.load();
+        data->state = LV_INDEV_STATE_PRESSED;
+        data->continue_reading = false;
+        return;
+    }
     const TouchSample sample = self->read_touch();
     data->point.x = sample.x;
     data->point.y = sample.y;
     data->state = sample.pressed ? LV_INDEV_STATE_PRESSED : LV_INDEV_STATE_RELEASED;
     data->continue_reading = false;
+}
+
+void EspDisplay::inject_touch(int x, int y) {
+    synthetic_touch_x_.store(static_cast<uint16_t>(clamp_int(x, 0, kWidth - 1)));
+    synthetic_touch_y_.store(static_cast<uint16_t>(clamp_int(y, 0, kHeight - 1)));
+    synthetic_touch_pending_.store(true);
 }
 
 void EspDisplay::publish_touch(int32_t x, int32_t y, bool pressed) {
@@ -949,7 +962,7 @@ Result<Unit> EspDisplay::init_lvgl() {
 
     lvgl_port_cfg_t port_config = {};
     port_config.task_priority = 4;
-    port_config.task_stack = 8192;
+    port_config.task_stack = 16384;
     port_config.task_affinity = -1;
     port_config.task_max_sleep_ms = 500;
     port_config.task_stack_caps = MALLOC_CAP_INTERNAL | MALLOC_CAP_DEFAULT;
