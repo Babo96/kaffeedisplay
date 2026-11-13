@@ -912,6 +912,7 @@ DisplayInfo EspDisplay::info() const {
     result.backlight_on = result.brightness_percent > 0;
     result.ui_fps = static_cast<float>(ui_fps_milli_.load()) / 1000.0f;
     result.flush_ms = static_cast<float>(flush_last_us_.load()) / 1000.0f;
+    result.render_ms = static_cast<float>(render_last_us_.load()) / 1000.0f;
     // 1 / (h_total * v_total / pclk) for the configured RGB timings.
     const int h_total =
         kWidth + board::kLcdHsyncPulse + board::kLcdHsyncBackPorch + board::kLcdHsyncFrontPorch;
@@ -1106,6 +1107,11 @@ Result<Unit> EspDisplay::init_lvgl() {
     g_flush_self = this;
     g_port_flush = lv_display_get_flush_cb(lv_display_);
     lv_display_set_flush_cb(lv_display_, &EspDisplay::counting_flush_cb);
+    // Time the render pass separately from the flush: LVGL draws into the
+    // framebuffer, then the port's flush waits for VSYNC. Only the split tells
+    // whether a slow scroll is drawing-bound or panel-bound.
+    lv_display_add_event_cb(lv_display_, &EspDisplay::render_start_cb, LV_EVENT_RENDER_START, this);
+    lv_display_add_event_cb(lv_display_, &EspDisplay::render_ready_cb, LV_EVENT_RENDER_READY, this);
 
     apply_rotation_locked(0);
     rotation_.store(0);
@@ -1224,6 +1230,18 @@ void EspDisplay::note_flush(int64_t duration_us) {
         flush_window_start_us_ = now;
         flush_window_count_ = 0;
     }
+}
+
+void EspDisplay::render_start_cb(lv_event_t* event) {
+    auto* self = static_cast<EspDisplay*>(lv_event_get_user_data(event));
+    if (self != nullptr) self->render_start_us_ = esp_timer_get_time();
+}
+
+void EspDisplay::render_ready_cb(lv_event_t* event) {
+    auto* self = static_cast<EspDisplay*>(lv_event_get_user_data(event));
+    if (self == nullptr || self->render_start_us_ == 0) return;
+    self->render_last_us_.store(
+        static_cast<uint32_t>(esp_timer_get_time() - self->render_start_us_));
 }
 
 void EspDisplay::counting_flush_cb(lv_display_t* display, const lv_area_t* area, uint8_t* pixels) {

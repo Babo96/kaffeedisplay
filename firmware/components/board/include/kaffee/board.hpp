@@ -22,6 +22,8 @@ struct DisplayInfo {
     // Duration of the last flush including the VSYNC wait; near the frame time
     // means the panel is the limit, well above it means drawing is.
     float flush_ms = 0.0f;
+    // Duration of the last render pass (layout + drawing), excluding the flush.
+    float render_ms = 0.0f;
 };
 
 // Display, backlight and board sensors. Implemented by the ESP-IDF board
