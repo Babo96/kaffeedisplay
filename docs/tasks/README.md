@@ -14,6 +14,7 @@ file as you work; put the PR link under Evidence when done.
 | T-007 | HIL tools, fonts/assets, release pipeline | qa | foundation | tooling-agent | done |
 | T-009 | Firmware integration, reports, factory reset and boot | integration | T-001..T-008 | integration-agent | done |
 | T-010 | Serial console CLI + live AP validation | tooling | T-009 | serial-cli-agent | done |
+| T-011 | Rotated display rendering (90/180/270) | embedded | T-010 | – | ready |
 
 ## Workflow
 
