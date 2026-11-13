@@ -1038,9 +1038,14 @@ Result<Unit> EspDisplay::init_lvgl() {
 
     lvgl_port_display_cfg_t display_config = {};
     display_config.panel_handle = panel_;
-    // Full-screen buffers are required by the avoid_tearing RGB path; the two
-    // RGB panel frame buffers are handed directly to LVGL.
-    display_config.buffer_size = static_cast<uint32_t>(kWidth) * kHeight;
+    // Partial draw buffer in *internal* RAM: rasterising into the PSRAM
+    // framebuffer measured ~150 ms per 480x480 frame (memory-bound: unchanged by
+    // -O2, by 240 MHz, by IRAM-resident drawing code), which capped the UI at
+    // 5-8 fps. Drawing into SRAM and letting the port copy each band into the
+    // framebuffer moves the cost to one bulk copy per band. 80 lines = 76.8 KiB,
+    // affordable next to the 155 KiB internal heap; more lines means fewer
+    // copies per frame.
+    display_config.buffer_size = static_cast<uint32_t>(kWidth) * 80;
     display_config.double_buffer = false;
     display_config.hres = kWidth;
     display_config.vres = kHeight;
@@ -1049,8 +1054,10 @@ Result<Unit> EspDisplay::init_lvgl() {
     display_config.rotation.swap_xy = false;
     display_config.rotation.mirror_x = false;
     display_config.rotation.mirror_y = false;
-    display_config.flags.buff_dma = false;
-    display_config.flags.buff_spiram = true;
+    // buff_spiram = false keeps the draw buffer in internal RAM (that is the
+    // point of this configuration); buff_dma = true asks for a DMA-capable one.
+    display_config.flags.buff_dma = true;
+    display_config.flags.buff_spiram = false;
     // Rotation is fixed at 0 on this panel; three routes are dead ends:
     //  * sw_rotate + direct_mode: the port rotates ww x hh from the framebuffer
     //    base pointer (esp_lvgl_port 2.9.0 documents the pair as unsupported),
@@ -1063,21 +1070,19 @@ Result<Unit> EspDisplay::init_lvgl() {
     // serial CLI, and clamped here for settings stored by older firmware.
     display_config.flags.sw_rotate = false;
     display_config.flags.swap_bytes = false;
-    // Render whole frames instead of partial invalid areas. With avoid_tearing
-    // the port pushes the *full* framebuffer and waits for VSYNC on every flush,
-    // so a scroll that invalidates several bands pays one frame-time per band
-    // (measured: 1-9 fps while dragging). Full-refresh mode trades the partial
-    // redraw for exactly one flush per frame (~27 ms render + one VSYNC wait on
-    // this panel), which is what makes scrolling usable.
-    display_config.flags.full_refresh = true;
+    // Partial rendering: LVGL redraws only the invalidated bands into the SRAM
+    // buffer. direct_mode/full_refresh would force either the PSRAM framebuffer
+    // (slow, see buffer_size above) or a full redraw per frame.
+    display_config.flags.full_refresh = false;
     display_config.flags.direct_mode = false;
 
     lvgl_port_display_rgb_cfg_t rgb_config = {};
     rgb_config.flags.bb_mode = false;
-    // Swap the two panel FBs at VSYNC and wait for the transfer semaphore in the
-    // flush callback. Tear-free and zero-copy at every rotation now that the
-    // panel does the rotating instead of a third software buffer.
-    rgb_config.flags.avoid_tearing = true;
+    // avoid_tearing hands LVGL the panel framebuffers, which is exactly what
+    // forced the PSRAM rasterisation above. With the SRAM draw buffer the port
+    // copies bands into the framebuffer instead; the trade-off is that a band
+    // can be shown while the next one is being copied (tearing on animations).
+    rgb_config.flags.avoid_tearing = false;
 
     lv_display_ = lvgl_port_add_disp_rgb(&display_config, &rgb_config);
     if (lv_display_ == nullptr) {
