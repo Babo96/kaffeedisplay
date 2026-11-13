@@ -9,8 +9,10 @@ constexpr int kAnnaAvatarX = 84;
 constexpr int kAnnaAvatarY = 132;
 constexpr int kAnnaNameX = 84;
 constexpr int kAnnaNameY = 160;
-constexpr int kGuestAvatarX = 376;
-constexpr int kGuestAvatarY = 228;
+// The guest action is pinned in the header band (96x40 at 256,8), not in the
+// member grid, so it stays reachable once the fund scrolls.
+constexpr int kGuestActionX = 304;
+constexpr int kGuestActionY = 28;
 constexpr int kProductBadgeX = 44;
 constexpr int kProductBadgeY = 210;
 constexpr int kProductTextX = 150;
@@ -120,7 +122,7 @@ bool run_click_test(FakeBackend& backend, kaffee::ui::UiApp& app, kaffee::ui::Ui
 
     // Guest avatar + product text column create a cash sale, and the guest
     // toast deliberately has no undo action.
-    click(h, kGuestAvatarX, kGuestAvatarY);
+    click(h, kGuestActionX, kGuestActionY);
     advance(h, 8);
     ok = expect(control.guest_selected(), "guest avatar selects guest mode") && ok;
     click(h, kProductTextX, kProductTextY);
@@ -150,7 +152,7 @@ bool run_click_test(FakeBackend& backend, kaffee::ui::UiApp& app, kaffee::ui::Ui
 
     // Disabling guest sales clears an existing guest selection and blocks a
     // guest booking until the setting is enabled again.
-    click(h, kGuestAvatarX, kGuestAvatarY);
+    click(h, kGuestActionX, kGuestActionY);
     advance(h, 8);
     backend.set_guest_enabled(false);
     app.refresh_data();

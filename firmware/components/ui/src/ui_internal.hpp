@@ -154,6 +154,7 @@ class UiAppImpl final : public UiApp, public UiControl {
 
     // Page 1
     lv_obj_t* book_body_ = nullptr;
+    lv_obj_t* guest_button_ = nullptr;
     lv_obj_t* balance_label_ = nullptr;
     uint64_t last_book_fingerprint_ = 0;
     std::string selected_user_id_;

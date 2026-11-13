@@ -434,6 +434,11 @@ class SerialConsole {
                 (rotation != 0 && rotation != 90 && rotation != 180 && rotation != 270)) {
                 return reply_error("display-usage", "display rotation <0|90|180|270>");
             }
+            // Only 0 is implemented on this panel; see T-011.
+            if (rotation != 0) {
+                return reply_error("rotation-unsupported",
+                                   "non-zero rotation is not supported on this display (T-011)");
+            }
             Settings settings = service_.settings();
             settings.display.rotation = static_cast<int>(rotation);
             auto saved = service_.save_settings(settings, new_request_id());

@@ -401,6 +401,9 @@ export const de = {
   // settings
   displaySection: "Anzeige",
   rotation: "Ausrichtung",
+  rotationSupported: "Nur 0° wird von diesem Display unterstützt.",
+  rotationUnsupported:
+    "90°, 180° und 270° werden von diesem Display nicht unterstützt; die Einstellung bleibt bei 0°.",
   brightnessActive: "Helligkeit aktiv",
   brightnessIdle: "Helligkeit Ruhe",
   dimTimeout: "Dimmen nach",

@@ -372,3 +372,26 @@ regenerated from committed sources — the implementation PR should regenerate
 3. **Portrait/rotated displays** — T-011 will rotate the panel; the column count
    is derived from a fixed 448 px content width and will need the same
    treatment for 90/180/270 if the layout is ever orientation-dependent.
+
+---
+
+## 11. Implemented deviation — the guest action moved to the header
+
+Section 6.1/6.2 recommended dropping the hint and pinning the guest tile. The
+implementation does the second part differently from both options sketched
+there: the guest action is a **96 × 40 px accent-bordered button in the header
+band** (x = 256, y = 8, between the title and the clock) instead of a tile in the
+grid.
+
+- It costs **zero** vertical space, so the 4 × 80 geometry from section 3 stays
+  exactly as measured (rows at 96 / 184 / 272 / 360, last row ends at 440).
+  A question-row button was tried first and cost 8 px: the fourth row then ended
+  at 456 and its names were clipped by the page dots.
+- It is reachable at any fund size, which was the actual complaint (at 30
+  members the trailing tile sits ~340 px below the fold).
+- It is created as a child of the page tile and deleted before each rebuild, so
+  it is not affected by `lv_obj_clean(book_body_)` and does not leak.
+- The simulator click-test now taps (304, 28) instead of the old grid slot.
+
+Verified in the simulator at 30 members: 16 tiles visible, scrollbar present,
+guest action always visible; `make test-ui` passes.

@@ -1,6 +1,6 @@
 # T-011 — Fix rotated display rendering (90/180/270)
 
-Status: investigating (root cause identified, fix path decided)
+Status: mitigated (rotation fixed at 0); rotated flush is the remaining fix
 Track: embedded / display
 Owner: –
 Branch: –
@@ -65,32 +65,50 @@ rules out a panel-timing or PSRAM-underrun cause (which would corrupt pixels).
 
 ## Fix path
 
-1. **Preferred: hardware rotation.** Set `flags.sw_rotate = false` and let
-   `lvgl_port_disp_rotation_update()` drive `esp_lcd_panel_swap_xy()` /
-   `esp_lcd_panel_mirror()` on `LV_EVENT_RESOLUTION_CHANGED`. `direct_mode` +
-   `avoid_tearing` then stay zero-copy and tear-free at every rotation, and the
-   third buffer disappears. Risk: the ST7701S in RGB mode has no frame memory,
-   so MADCTL `MV` (transpose) may be ignored — 180° should work (mirror X + Y),
-   90/270 must be measured on the panel before committing to this path.
-2. **If the panel ignores transpose: LVGL draw-time matrix rotation.**
-   `lv_display_set_matrix_rotation()` is LVGL 9.6's sanctioned way to rotate in
-   direct/full mode (it rotates at draw time, so the flush stays a no-op).
-   `esp_lvgl_port` 2.9.0 does not use it; enabling `LV_DRAW_TRANSFORM_USE_MATRIX`
-   and calling it from the board is the smallest in-tree change. Cost: software
-   transform per pixel, so measure fps.
+1. ~~**Hardware rotation** (`sw_rotate = false` +
+   `esp_lcd_panel_swap_xy()/mirror()`)~~ **Rejected after reading the IDF
+   driver.** On RGB panels `esp_lcd_panel_swap_xy()` only sets a rotate mask that
+   `esp_lcd_rgb_panel_draw_bitmap()` applies in its *CPU-copy* branch. With
+   `avoid_tearing` the draw buffer is one of the panel framebuffers, so that
+   branch never runs and the call is a no-op. The ST7701 vendor driver overrides
+   only `mirror` (SDIR/ML) and never writes MADCTL `MV`, so there is no transpose
+   path at all.
+   `sw_rotate` is nevertheless now off, to silence the broken path and drop the
+   third full-screen PSRAM buffer.
+2. ~~**LVGL draw-time matrix rotation**~~ **Rejected: not implemented by the
+   software renderer.** `lv_display_set_matrix_rotation()` only flips a flag that
+   `lv_refr` consumes; the matrix is read exclusively by the VG-Lite and NanoVG
+   draw units. With `LV_DRAW_TRANSFORM_USE_MATRIX=1` and RGB565 SW on a
+   480 × 480 direct-mode display, LVGL rotates the clip areas and the flush area
+   but draws the pixels unrotated — so the image stays put while pointer input is
+   rotated. Verified by building LVGL 9.6 from source and rendering a marker at
+   rotation 90/180 (marker stayed at 0,0; on a non-square display it also writes
+   out of bounds).
 3. **If neither works: partial-buffer software rotation.** Drop `direct_mode`
    (and `avoid_tearing`) for rotated modes and use `LV_DISPLAY_RENDER_MODE_PARTIAL`
    with `sw_rotate = true`, which is the combination the port documents. Loses
    tear-freedom and zero-copy, so it needs the fps number before adoption.
-4. **Interim guard regardless of the path chosen:** reject or annotate non-zero
-   rotation in the admin UI and the serial CLI (`display rotation`) so a user
-   cannot put a device into a visibly broken state; keep 0° as the only
-   supported value until the fix lands.
+4. **Shipped guard (this branch).** Non-zero rotation is rejected by
+   `PUT /display` and `PUT /settings` (`validate_display`), refused by the serial
+   `display rotation` command, disabled in the admin UI with a German hint, and
+   clamped to 0 at boot so a device that stored 90 with older firmware still
+   starts usable. Rotation 0 keeps the zero-copy VSYNC path untouched.
+5. **Remaining real fix: a rotated flush.** Render strips with LVGL in
+   `LV_DISPLAY_RENDER_MODE_PARTIAL`, transpose each strip into the back panel
+   framebuffer (stride-aware, RGB565) and swap at VSYNC. ESP32-S3 has no PPA, so
+   this is a per-pixel software transpose of ~230k px per full frame — measure
+   before promising 30 fps. It also gives up direct-mode zero-copy, which is why
+   it is not part of this change. Keep 0° as the default and expose rotated modes
+   only behind an explicit opt-in.
 
 ## Acceptance
 
-- Correct rendering and scrolling at 90/180/270, no shift, duplication or stale
-  bands; touch mapping correct at all rotations.
+- **Interim (done in T-013's branch):** a device cannot be put into a rotated
+  state — API/serial/admin reject it, boot clamps it, rotation 0 is unchanged and
+  the third PSRAM buffer is gone.
+- Full acceptance, when the rotated flush lands: correct rendering and scrolling
+  at 90/180/270, no shift, duplication or stale bands; touch mapping correct at
+  all rotations.
 - FPS measured at 0/90/180/270; no regression at 0°, and the teardown of the
   third buffer reflected in the internal-RAM figure from `status`.
 - Rotated simulator/device screenshots committed; `docs/hardware.md` matches the

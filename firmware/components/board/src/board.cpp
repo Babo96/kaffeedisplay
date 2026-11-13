@@ -927,6 +927,12 @@ DisplaySettings EspDisplay::settings() const {
 
 Result<Unit> EspDisplay::apply_settings(const DisplaySettings& settings) {
     DisplaySettings next = settings;
+    // Only 0 is implemented (see init_lvgl); clamp instead of failing the whole
+    // apply so a device that stored 90 with older firmware still boots usable.
+    if (next.rotation != 0) {
+        ESP_LOGW(kTag, "rotation %d is not supported on this panel; using 0", next.rotation);
+        next.rotation = 0;
+    }
     next.rotation = touch::normalize_rotation(next.rotation);
     next.brightness_active = clamp_int(next.brightness_active, 5, 100);
     next.brightness_idle = clamp_int(next.brightness_idle, 1, 100);
@@ -1019,8 +1025,7 @@ Result<Unit> EspDisplay::init_lvgl() {
     lvgl_port_display_cfg_t display_config = {};
     display_config.panel_handle = panel_;
     // Full-screen buffers are required by the avoid_tearing RGB path; the two
-    // RGB panel frame buffers are handed directly to LVGL. Hardware rotation
-    // keeps this zero-copy path valid at 0/90/180/270.
+    // RGB panel frame buffers are handed directly to LVGL.
     display_config.buffer_size = static_cast<uint32_t>(kWidth) * kHeight;
     display_config.double_buffer = false;
     display_config.hres = kWidth;
@@ -1032,13 +1037,16 @@ Result<Unit> EspDisplay::init_lvgl() {
     display_config.rotation.mirror_y = false;
     display_config.flags.buff_dma = false;
     display_config.flags.buff_spiram = true;
-    // Rotate in the panel, not in software. esp_lvgl_port 2.9.0 documents
-    // sw_rotate + direct_mode as unsupported: in direct mode LVGL renders only
-    // the invalidated area into the framebuffer, while the port's rotation path
-    // rotates ww x hh from the framebuffer base pointer, i.e. the wrong region.
-    // With sw_rotate off, lv_display_set_rotation() drives
-    // esp_lcd_panel_swap_xy()/mirror() through the port's RESOLUTION_CHANGED
-    // handler and the flush stays zero-copy. See T-011.
+    // Rotation is fixed at 0 on this panel; three routes are dead ends:
+    //  * sw_rotate + direct_mode: the port rotates ww x hh from the framebuffer
+    //    base pointer (esp_lvgl_port 2.9.0 documents the pair as unsupported),
+    //  * esp_lcd RGB swap_xy: a no-op once the draw buffer is a panel
+    //    framebuffer, because the rotate mask only feeds the CPU-copy branch,
+    //  * LVGL matrix rotation: not implemented by the software renderer.
+    // Turning sw_rotate off therefore silences the broken path and drops the
+    // third full-screen buffer. T-011 tracks a rotated flush that writes strips
+    // into the back buffer. Non-zero rotation is rejected by the API and the
+    // serial CLI, and clamped here for settings stored by older firmware.
     display_config.flags.sw_rotate = false;
     display_config.flags.swap_bytes = false;
     display_config.flags.full_refresh = false;
@@ -1077,8 +1085,8 @@ Result<Unit> EspDisplay::init_lvgl() {
     // from an explicit timer so touch and injected gestures keep working.
     indev_timer_ = lv_timer_create(&EspDisplay::indev_poll_cb, 30, this);
 
-    apply_rotation_locked(settings_.rotation);
-    rotation_.store(settings_.rotation);
+    apply_rotation_locked(0);
+    rotation_.store(0);
     lvgl_port_unlock();
 
     ESP_LOGI(kTag, "LVGL port ready (%dx%d, rotation %d, software rotate)", kWidth, kHeight,

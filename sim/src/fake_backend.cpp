@@ -137,21 +137,9 @@ void FakeBackend::notify() {
 }
 
 FakeBackend::UsersReturn FakeBackend::users() const {
-    auto list = ledger_.users();
-    if (!usage_order_) return list;
-    // Stand-in for the T-013 service order: members with the most bookings this
-    // month first, ties by name. All seeded bookings fall inside the window.
-    const auto board = ledger_.leaderboard(now_ - 86400 * 10, now_ + 86400);
-    std::map<std::string, int> counts;
-    for (const auto& entry : board.entries) counts[entry.user_id] = entry.count;
-    std::stable_sort(list.begin(), list.end(),
-                     [&counts](const kaffee::User& a, const kaffee::User& b) {
-                         const int ca = counts.count(a.id) != 0 ? counts.at(a.id) : 0;
-                         const int cb = counts.count(b.id) != 0 ? counts.at(b.id) : 0;
-                         if (ca != cb) return ca > cb;
-                         return a.name < b.name;
-                     });
-    return list;
+    // Join order. With --order usage, app_settings() reports UserSortOrder::Usage
+    // and the UI orders the tiles through the production code path.
+    return ledger_.users();
 }
 
 FakeBackend::ProductsReturn FakeBackend::products() const {
@@ -285,6 +273,8 @@ kaffee::AppSettings FakeBackend::app_settings() const {
     settings.guest_enabled = guest_enabled_;
     settings.currency = "EUR";
     settings.locale = "de-DE";
+    settings.user_sort =
+        usage_order_ ? kaffee::UserSortOrder::Usage : kaffee::UserSortOrder::Creation;
     return settings;
 }
 

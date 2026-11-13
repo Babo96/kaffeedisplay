@@ -76,7 +76,9 @@ void UiAppImpl::build_page_book(lv_obj_t* tile) {
     build_header(tile, strings::BOOK_TITLE, &clock_labels_[0]);
 
     book_body_ = lv_obj_create(tile);
-    lv_obj_set_size(book_body_, lv_pct(100), 424);
+    // 392 tall (56..448) so the last tile row ends above the page dots; see
+    // docs/tasks/T-013-page1-layout.md.
+    lv_obj_set_size(book_body_, lv_pct(100), 392);
     lv_obj_set_pos(book_body_, 0, 56);
     theme::make_transparent(book_body_);
     lv_obj_set_flex_flow(book_body_, LV_FLEX_FLOW_COLUMN);
@@ -85,10 +87,16 @@ void UiAppImpl::build_page_book(lv_obj_t* tile) {
     lv_obj_set_style_pad_left(book_body_, 16, 0);
     lv_obj_set_style_pad_right(book_body_, 16, 0);
     lv_obj_set_style_pad_top(book_body_, 8, 0);
-    lv_obj_set_style_pad_bottom(book_body_, 46, 0);
+    lv_obj_set_style_pad_bottom(book_body_, 8, 0);
     lv_obj_set_style_pad_row(book_body_, 8, 0);
     lv_obj_set_scroll_dir(book_body_, LV_DIR_VER);
-    theme::hide_scrollbars(book_body_);
+    // The member list must show that it continues: a slim scrollbar appears only
+    // when the grid is taller than the body (30+ members) and costs no objects.
+    lv_obj_set_scrollbar_mode(book_body_, LV_SCROLLBAR_MODE_ON);
+    lv_obj_set_style_width(book_body_, 4, LV_PART_SCROLLBAR);
+    lv_obj_set_style_bg_color(book_body_, theme::color(theme::COLOR_DIM), LV_PART_SCROLLBAR);
+    lv_obj_set_style_bg_opa(book_body_, LV_OPA_COVER, LV_PART_SCROLLBAR);
+    lv_obj_set_style_radius(book_body_, 2, LV_PART_SCROLLBAR);
 
     refresh_book_page();
 }
@@ -96,6 +104,12 @@ void UiAppImpl::build_page_book(lv_obj_t* tile) {
 void UiAppImpl::refresh_book_page() {
     if (book_body_ == nullptr) return;
     balance_label_ = nullptr;
+    // The guest action is a child of the page tile, not of book_body_, so
+    // lv_obj_clean() below does not remove it.
+    if (guest_button_ != nullptr) {
+        lv_obj_delete(guest_button_);
+        guest_button_ = nullptr;
+    }
     last_book_fingerprint_ = book_catalog_fingerprint();
     lv_obj_clean(book_body_);
 
@@ -221,6 +235,20 @@ void UiAppImpl::refresh_book_page() {
     theme::make_label(book_body_, strings::BOOK_QUESTION, theme::font_title(),
                       theme::color(theme::COLOR_TEXT));
 
+    // The guest action is pinned to the header band (between the title and the
+    // clock) instead of trailing the member grid: at 30 members a trailing tile
+    // sits more than a screen below the fold, and a question-row button would
+    // cost the fourth tile row (see docs/tasks/T-013-page1-layout.md section 6).
+    if (guest_enabled && book_body_ != nullptr) {
+        guest_button_ =
+            theme::make_button(lv_obj_get_parent(book_body_), strings::BOOK_GUEST, false);
+        lv_obj_set_pos(guest_button_, 256, 8);
+        lv_obj_set_size(guest_button_, 96, 40);
+        lv_obj_set_style_border_width(guest_button_, 1, 0);
+        lv_obj_set_style_border_color(guest_button_, theme::color(theme::COLOR_ACCENT), 0);
+        lv_obj_add_event_cb(guest_button_, &UiAppImpl::guest_click_cb, LV_EVENT_CLICKED, this);
+    }
+
     if (active_users.empty()) {
         lv_obj_t* empty = theme::make_card(book_body_);
         lv_obj_set_size(empty, lv_pct(100), 150);
@@ -246,12 +274,13 @@ void UiAppImpl::refresh_book_page() {
 
     for (const User& member : active_users) {
         lv_obj_t* item = lv_obj_create(grid);
-        lv_obj_set_size(item, lv_pct(31), 100);
+        // 4 columns of 106 px + 3 gaps of 8 px = 448 px of content.
+        lv_obj_set_size(item, 106, 80);
         lv_obj_set_style_bg_color(item, theme::color(theme::COLOR_SURFACE), 0);
         lv_obj_set_style_bg_opa(item, LV_OPA_COVER, 0);
         lv_obj_set_style_radius(item, 20, 0);
         lv_obj_set_style_border_width(item, 0, 0);
-        lv_obj_set_style_pad_all(item, 8, 0);
+        lv_obj_set_style_pad_all(item, 5, 0);
         theme::hide_scrollbars(item);
         lv_obj_set_flex_flow(item, LV_FLEX_FLOW_COLUMN);
         lv_obj_set_flex_align(item, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
@@ -268,30 +297,6 @@ void UiAppImpl::refresh_book_page() {
         auto* ctx = new IdContext{this, member.id};
         lv_obj_add_event_cb(item, &UiAppImpl::user_click_cb, LV_EVENT_CLICKED, ctx);
         lv_obj_add_event_cb(item, &UiAppImpl::delete_context_cb, LV_EVENT_DELETE, ctx);
-    }
-
-    if (guest_enabled) {
-        lv_obj_t* item = lv_obj_create(grid);
-        lv_obj_set_size(item, lv_pct(31), 100);
-        lv_obj_set_style_bg_color(item, theme::color(theme::COLOR_SURFACE), 0);
-        lv_obj_set_style_bg_opa(item, LV_OPA_COVER, 0);
-        lv_obj_set_style_radius(item, 20, 0);
-        lv_obj_set_style_border_width(item, 1, 0);
-        lv_obj_set_style_border_color(item, theme::color(theme::COLOR_ACCENT), 0);
-        lv_obj_set_style_pad_all(item, 8, 0);
-        theme::hide_scrollbars(item);
-        lv_obj_set_flex_flow(item, LV_FLEX_FLOW_COLUMN);
-        lv_obj_set_flex_align(item, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
-                              LV_FLEX_ALIGN_CENTER);
-        lv_obj_set_style_pad_row(item, 3, 0);
-        theme::set_pressed_feedback(item, theme::color(theme::COLOR_SURFACE_ALT));
-
-        make_user_avatar(item, strings::BOOK_GUEST, "#D4A373", 42);
-        theme::make_label(item, strings::BOOK_GUEST, theme::font_body(),
-                          theme::color(theme::COLOR_ACCENT));
-        theme::make_label(item, strings::BOOK_GUEST_HINT, theme::font_small(),
-                          theme::color(theme::COLOR_MUTED));
-        lv_obj_add_event_cb(item, &UiAppImpl::guest_click_cb, LV_EVENT_CLICKED, this);
     }
 }
 

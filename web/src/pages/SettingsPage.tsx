@@ -182,22 +182,25 @@ function SettingsForm({ initial }: { initial: Settings }) {
         <h2 className="font-medium">{de.displaySection}</h2>
         <div className="space-y-2">
           <span className="label">{de.rotation}</span>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap items-center gap-1.5">
             {([0, 90, 180, 270] as const).map((rotation) => (
               <button
                 key={rotation}
                 type="button"
+                disabled={rotation !== 0}
+                title={rotation === 0 ? de.rotationSupported : de.rotationUnsupported}
                 className={`rounded-xl border px-4 py-2 text-sm ${
                   display.rotation === rotation
                     ? "border-amber-400 bg-amber-400 font-semibold text-espresso-950"
                     : "border-cream-100/10 text-cream-100/80"
-                }`}
+                } ${rotation !== 0 ? "cursor-not-allowed opacity-40" : ""}`}
                 onClick={() => setDisplay({ ...display, rotation })}
               >
                 {rotation}°
               </button>
             ))}
           </div>
+          <p className="muted text-xs">{de.rotationUnsupported}</p>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
