@@ -1,9 +1,9 @@
 # T-013 — Order the booking-page users by consumption
 
-Status: ready
+Status: done
 Track: ui / web / domain
 Owner: –
-Branch: –
+Branch: `feat/T-013-firmware` (PR #18)
 Issue: https://github.com/Babo96/kaffeedisplay/issues/16
 Depends on: T-004 (booking page), T-012 (consumption data already available via the leaderboard)
 
@@ -71,3 +71,20 @@ default (today's order stays the default).
 
 ## Evidence
 
+## Evidence
+
+- `make test-host`: 154 cases / 27,524 assertions, including the ordering rules
+  (ties by name, members without a booking last, creation order untouched) and
+  the settings round-trip with its lenient read path.
+- `make check`, `npm typecheck`, `npm test` (35), Playwright (11), `make
+  screenshots-check` (8 frames) pass; CI green on `main` (`a27502f`).
+- Device, flashed from the CI artifact: `boot health ... => ok`, 15 members,
+  `rotation=0`, `lvgl_stack_free=18256` with the 24 KiB stack, `psram_free` up by
+  ~450 KiB because the third rotation buffer is gone. `display rotation 90`
+  answers `ERR rotation-unsupported`.
+- Page 1 geometry and the pinned guest action are recorded in
+  `T-013-page1-layout.md` (16 readable tiles, 4 × 106 × 80 px, scrollbar only
+  when the list overflows).
+- The admin control (`Zufällig`-style segmented choice under *Kasse*) saves
+  `user_sort` through the existing `PUT /settings` path and falls back to
+  `creation` when the device omits the field.
