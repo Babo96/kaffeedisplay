@@ -168,12 +168,12 @@ void UiAppImpl::refresh_stats_page() {
                               theme::color(i < 3 ? rank_colors[i] : theme::COLOR_MUTED));
         lv_obj_set_width(rank, 24);
 
-        lv_obj_t* avatar =
-            theme::make_circle(content, 32, parse_hex_color(entry.color, theme::COLOR_ACCENT));
-        lv_obj_t* avatar_text =
-            theme::make_label(avatar, initials(entry.name).c_str(), theme::font_small(),
-                              theme::color(theme::COLOR_BG));
-        lv_obj_center(avatar_text);
+        // Same identity as the booking page: draw the preset when the user has
+        // one, otherwise coloured initials. Archived users stay resolvable, so a
+        // past period keeps its motifs.
+        int avatar_id = 0;
+        if (auto member = backend_.find_user(entry.user_id)) avatar_id = member->avatar_id;
+        make_user_avatar(content, entry.name, entry.color, 38, avatar_id);
 
         lv_obj_t* name = theme::make_label(content, entry.name.c_str(), theme::font_body(),
                                            theme::color(theme::COLOR_TEXT));

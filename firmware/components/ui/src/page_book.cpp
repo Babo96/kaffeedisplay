@@ -10,13 +10,12 @@
 
 namespace kaffee::ui {
 
-namespace {
-
 // Each preset is a distinct 38x38 I4 indexed illustration with an ARGB8888
 // palette, held in flash and drawn at runtime; no decoder or upload is involved.
-// Users without a preset fall back to coloured initials.
-lv_obj_t* make_avatar(lv_obj_t* parent, const std::string& name, const std::string& color, int size,
-                      int avatar_id = 0) {
+// Users without a preset fall back to coloured initials. Shared by the booking
+// page and the leaderboard so a user looks the same on every page.
+lv_obj_t* make_user_avatar(lv_obj_t* parent, const std::string& name, const std::string& color,
+                           int size, int avatar_id) {
     const lv_image_dsc_t* artwork = avatar_art(avatar_id);
     const bool preset = artwork != nullptr;
     const lv_color_t fill =
@@ -31,6 +30,12 @@ lv_obj_t* make_avatar(lv_obj_t* parent, const std::string& name, const std::stri
         lv_obj_set_style_clip_corner(circle, true, 0);
         lv_obj_t* image = lv_image_create(circle);
         lv_image_set_src(image, artwork);
+        // The artwork is authored at 38 px. Scale it down rather than letting
+        // the circle clip the motif on smaller rows.
+        if (artwork->header.w != 0 && static_cast<int>(artwork->header.w) > size) {
+            lv_image_set_scale(image,
+                               static_cast<uint32_t>(size) * LV_SCALE_NONE / artwork->header.w);
+        }
         lv_obj_center(image);
         lv_obj_set_clickable(image, false);
         lv_obj_set_scrollable(image, false);
@@ -41,8 +46,6 @@ lv_obj_t* make_avatar(lv_obj_t* parent, const std::string& name, const std::stri
     }
     return circle;
 }
-
-}  // namespace
 
 void UiAppImpl::build_page_book(lv_obj_t* tile) {
     build_header(tile, strings::BOOK_TITLE, &clock_labels_[0]);
@@ -93,9 +96,9 @@ void UiAppImpl::refresh_book_page() {
         lv_obj_set_style_pad_column(card, 10, 0);
 
         if (guest_mode_) {
-            make_avatar(card, strings::BOOK_GUEST, "#D4A373", 46);
+            make_user_avatar(card, strings::BOOK_GUEST, "#D4A373", 46);
         } else {
-            make_avatar(card, user->name, user->color, 46, user->avatar_id);
+            make_user_avatar(card, user->name, user->color, 46, user->avatar_id);
         }
 
         lv_obj_t* names = theme::make_column(card, 0);
@@ -233,7 +236,7 @@ void UiAppImpl::refresh_book_page() {
         lv_obj_set_style_pad_row(item, 5, 0);
         theme::set_pressed_feedback(item, theme::color(theme::COLOR_SURFACE_ALT));
 
-        make_avatar(item, member.name, member.color, 42, member.avatar_id);
+        make_user_avatar(item, member.name, member.color, 42, member.avatar_id);
         lv_obj_t* name = theme::make_label(item, member.name.c_str(), theme::font_body(),
                                            theme::color(theme::COLOR_TEXT));
         lv_obj_set_style_text_align(name, LV_TEXT_ALIGN_CENTER, 0);
@@ -260,7 +263,7 @@ void UiAppImpl::refresh_book_page() {
         lv_obj_set_style_pad_row(item, 3, 0);
         theme::set_pressed_feedback(item, theme::color(theme::COLOR_SURFACE_ALT));
 
-        make_avatar(item, strings::BOOK_GUEST, "#D4A373", 42);
+        make_user_avatar(item, strings::BOOK_GUEST, "#D4A373", 42);
         theme::make_label(item, strings::BOOK_GUEST, theme::font_body(),
                           theme::color(theme::COLOR_ACCENT));
         theme::make_label(item, strings::BOOK_GUEST_HINT, theme::font_small(),

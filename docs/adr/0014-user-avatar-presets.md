@@ -18,7 +18,10 @@ The booking UI identifies members using coloured initials. The administrator wan
 
 ## Consequences
 
-The domain/service/OpenAPI contracts and all consumers are changed in one branch. User data and journal events remain self-contained and backup-compatible. The artwork now adds 30 × (16 × 4 + 38 × 19) = **23,580 bytes of I4 palette and index data in firmware flash**, down from **86,640 bytes** with RGB565: a theoretical 63,060-byte reduction before differences in rendering code or linking. Indexed images use LVGL's built-in software decoder and may temporarily allocate expanded pixel data; flash usage falls under the generic image-size budget in `make check`, and memory overhead was measured on the device (`status` reports internal heap and LVGL stack watermarks) rather than asserted in CI. Image objects are only created for users on the active screen. The simulator and CI verify compatibility, visual appearance, and build size.
+The domain/service/OpenAPI contracts and all consumers are changed in one branch. User data and journal events remain self-contained and backup-compatible. The artwork now adds 30 × (16 × 4 + 38 × 19) = **23,580 bytes of I4 palette and index data in firmware flash**, down from **86,640 bytes** with RGB565: a theoretical 63,060-byte reduction before differences in rendering code or linking. Indexed images use LVGL's built-in software decoder and may temporarily allocate expanded pixel data; flash usage falls under the generic image-size budget in `make check`, and memory overhead was measured on the device (`status` reports internal heap and LVGL stack watermarks) rather than asserted in CI. The booking page and the statistics leaderboard share one avatar helper, so a
+member looks the same on both pages; each row resolves the avatar from the user
+record, which keeps archived members' motifs in past periods. Image objects are
+only created for rows that are on the active screen. The simulator and CI verify compatibility, visual appearance, and build size.
 
 ## Alternatives considered
 

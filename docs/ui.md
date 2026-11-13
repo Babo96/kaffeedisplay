@@ -23,6 +23,8 @@ dot to change pages; product taps never trigger navigation.
 - Current month, `<` / `>` arrows for previous/next month.
 - Ranking by number of products bought. **No balances, no money, no prices.**
 - Top 3 highlighted; bars; scrollable. Guest count shown separately in the footer.
+- Rows draw the same avatar as page 1 (preset motif, otherwise coloured initials),
+  looked up from the user record, so archived members keep their motif in past months.
 - Counts are net of voids within the period: purchases booked in the month add
   one, voids recorded in that same month subtract one. A void recorded in a
   later period does not change the original month's count.

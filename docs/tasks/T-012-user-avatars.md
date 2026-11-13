@@ -53,5 +53,3 @@ Branch: `feat/user-avatars` (from `main` 3c1c626, PR #14)
   18 Marienkäfer, 29 Berge) and three grey/black faces are easy to confuse
   (4 Panda, 8 Waschbär, 15 Koala). Redrawing them is art work, not a code
   change; tracked separately.
-- The leaderboard page still draws coloured initials, so a user with a preset
-  looks different on pages 1 and 2.

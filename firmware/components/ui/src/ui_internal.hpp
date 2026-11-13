@@ -26,6 +26,12 @@ class ChangeQueue {
     bool pending_ = false;
 };
 
+// Draws a user avatar: the preset illustration for 1..kMaxUserAvatarId, or a
+// coloured circle with the user's initials otherwise. Shared so the booking page
+// and the leaderboard render the same identity.
+lv_obj_t* make_user_avatar(lv_obj_t* parent, const std::string& name, const std::string& color,
+                           int size, int avatar_id = 0);
+
 class UiAppImpl final : public UiApp, public UiControl {
   public:
     explicit UiAppImpl(IUiBackend& backend);
