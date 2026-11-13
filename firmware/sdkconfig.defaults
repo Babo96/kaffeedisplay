@@ -14,9 +14,11 @@ CONFIG_SPIRAM_MODE_OCT=y
 CONFIG_SPIRAM_SPEED_80M=y
 CONFIG_SPIRAM_USE_MALLOC=y
 CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP=y
-# UI/LVGL objects are small; keep the internal heap for task stacks and DMA by
-# sending allocations above 1 KiB to PSRAM.
-CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=0
+# Allocations up to 4 KiB stay in internal RAM. LVGL creates and destroys dozens of
+# small objects per page switch; with everything in PSRAM a page rebuild measured
+# 395 ms, because each object allocation is a slow external-memory allocation.
+# Large buffers (draw buffers, framebuffers) still go to PSRAM.
+CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=4096
 
 # Build profile: the software renderer draws every pixel on the CPU, and the
 # ESP-IDF default (-Og) leaves a large factor on the table for scroll/refresh
