@@ -152,6 +152,13 @@ export interface Leaderboard {
   entries: LeaderboardEntry[];
 }
 
+/**
+ * Order of the member tiles on the device booking page. `creation` is the order
+ * the members were created in; `usage` puts the members with the most bookings
+ * in the current month first (ties broken by name).
+ */
+export type UserSort = "creation" | "usage";
+
 export interface DisplaySettings {
   rotation: 0 | 90 | 180 | 270;
   brightness_active: number;
@@ -181,6 +188,12 @@ export interface Settings {
     currency: string;
     locale: string;
     guest_enabled: boolean;
+    /**
+     * Order of the member tiles on the device booking page.
+     * `creation` keeps the order the members were created in,
+     * `usage` puts the members with the most bookings this month first.
+     */
+    user_sort: UserSort;
     max_open_debt_cents: Cents;
     low_balance_warning_cents: Cents;
   };

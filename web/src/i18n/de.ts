@@ -426,6 +426,11 @@ export const de = {
   sntpServer: "SNTP-Server",
   appSection: "Kasse",
   guestEnabled: "Gastverkauf erlauben",
+  userSortLabel: "Reihenfolge der Benutzer auf dem Gerät",
+  userSortCreation: "Wie angelegt",
+  userSortUsage: "Meistgebuchte zuerst",
+  userSortHint:
+    "„Meistgebuchte zuerst“ zählt die Buchungen des laufenden Monats. Wer oft bucht, steht dann oben auf Seite 1.",
   maxOpenDebt: "Maximaler offener Betrag",
   lowBalanceWarning: "Warnschwelle Guthaben",
   generalSection: "Allgemein",
