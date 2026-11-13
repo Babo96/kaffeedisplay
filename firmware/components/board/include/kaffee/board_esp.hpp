@@ -75,6 +75,12 @@ class EspDisplay final : public IDisplay {
     // Keeps the panel awake while an AP/QR session is active. The UI/net layer
     // should call this with true when the AP starts and false when it stops.
     void set_stay_awake(bool stay_awake);
+    // Inject a synthetic press into the real LVGL indev read callback. The next
+    // callback returns PRESSED, the following one RELEASED, so LVGL runs its
+    // normal hit-test/click path. Coordinates are raw panel coordinates.
+    bool inject_touch(int x, int y);
+    // Inject a real press-drag-release gesture through the LVGL indev callback.
+    bool inject_swipe(int x1, int y1, int x2, int y2);
 
     // Direct framebuffer colour test used for bring-up diagnostics. It does
     // not touch LVGL and leaves eight vertical colour bars on the panel.
@@ -112,6 +118,7 @@ class EspDisplay final : public IDisplay {
 
     static void touch_read_cb(lv_indev_t* indev, lv_indev_data_t* data);
     static void test_touch_timer_cb(lv_timer_t* timer);
+    static void indev_poll_cb(lv_timer_t* timer);
     static void test_hide_timer_cb(lv_timer_t* timer);
 
     void publish_touch(int32_t x, int32_t y, bool pressed);
@@ -143,6 +150,7 @@ class EspDisplay final : public IDisplay {
 
     lv_display_t* lv_display_ = nullptr;
     lv_indev_t* lv_indev_ = nullptr;
+    lv_timer_t* indev_timer_ = nullptr;
 
     mutable SemaphoreHandle_t state_mutex_ = nullptr;
     SemaphoreHandle_t backlight_mutex_ = nullptr;
@@ -159,6 +167,16 @@ class EspDisplay final : public IDisplay {
     std::atomic<int> power_state_{static_cast<int>(PowerState::Off)};
     std::atomic<bool> lvgl_ready_{false};
     std::atomic<bool> touch_present_{false};
+    std::atomic<bool> synthetic_touch_pending_{false};
+    std::atomic<uint16_t> synthetic_touch_x_{0};
+    std::atomic<uint16_t> synthetic_touch_y_{0};
+    std::atomic<bool> synthetic_swipe_active_{false};
+    std::atomic<int> synthetic_swipe_step_{0};
+    std::atomic<int> synthetic_swipe_steps_{0};
+    std::atomic<int> synthetic_swipe_x0_{0};
+    std::atomic<int> synthetic_swipe_y0_{0};
+    std::atomic<int> synthetic_swipe_x1_{0};
+    std::atomic<int> synthetic_swipe_y1_{0};
     std::atomic<bool> running_{false};
     bool stay_awake_ = false;
     std::atomic<int> task_count_{0};

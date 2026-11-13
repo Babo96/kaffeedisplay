@@ -44,11 +44,11 @@ The device UI is 480×480, German, espresso-themed.
 
 | Übersicht | Berichte |
 |---|---|
-| ![Admin dashboard](docs/ui/screenshots/web-dashboard.png) | ![Reports](docs/ui/screenshots/web-reports.png) |
+| ![Admin dashboard](docs/ui/screenshots/web/web-dashboard.png) | ![Reports](docs/ui/screenshots/web/web-reports.png) |
 
 | Benutzer | Einstellungen |
 |---|---|
-| ![Users](docs/ui/screenshots/web-users.png) | ![Settings](docs/ui/screenshots/web-settings.png) |
+| ![Users](docs/ui/screenshots/web/web-users.png) | ![Settings](docs/ui/screenshots/web/web-settings.png) |
 
 ## Optional user avatars
 

@@ -67,7 +67,7 @@ tests therefore could not run against a real board.
    `/device` both showed 1 then 0.
 3. **HTTP task stack overflow (found during validation).** Creating a product
    through the API overflowed the `httpd` task at 10 KiB and rebooted the board.
-   The server stack is now 24 KiB; the ineffective
+   The server stack is 12 KiB; the ineffective
    `CONFIG_HTTPD_TASK_STACK_SIZE` line was removed from `sdkconfig.defaults`.
 
 
@@ -84,15 +84,147 @@ Fix: five-line internal-RAM bounce buffer (`bounce_buffer_size_px = 5 * 480`)
 with the PSRAM framebuffer still enabled, plus the known-good Guition timing
 `12 MHz, HSYNC 8/50/10, VSYNC 8/20/10`. Measured crosshair shift dropped from
 +72.4 px to about +8 px; page dots are centred and page 1 has no edge clipping.
-The HTTP server stack was reduced from 24 KiB to 16 KiB to make room for the
-12 KiB serial-console stack; product creation was re-tested through the API
-(201, no panic).
+The HTTP server stack is 12 KiB to make room for the 16 KiB LVGL and 12 KiB
+serial-console stacks; product creation was re-tested through the API (201, no
+panic). LVGL uses the C library allocator instead of its 64 KiB internal pool,
+Wi-Fi uses eight static RX buffers, and mDNS lives in PSRAM. `status` shows the
+internal heap and LVGL stack high-water so this can be watched.
 Final webcam frames: `/tmp/opencode/t010-display/final-test.jpg`,
-`/tmp/opencode/t010-display/final-page1-bounce6.jpg`.
+`/tmp/opencode/t010-display/final-page1-bounce5.jpg`.
+
+
+## UI booking crash (follow-up)
+
+Selecting a user and then tapping a beverage crashed/rebooted the device while
+`book` over serial stayed healthy. Reproduction through the new
+`ui book <user_id> <product_id>` command at the old 8 KiB LVGL task stack
+produced:
+
+```text
+***ERROR*** A stack overflow in task taskLVGL has been detected.
+Backtrace: ... |<-CORRUPTED
+Rebooting...
+```
+
+Root causes fixed:
+
+1. `esp_lvgl_port` task stack was 8192 bytes; the full page refresh after a
+   booking used about 9.4 KiB. Raised to 16384 bytes. `status` now reports
+   `lvgl_stack_free`; after 10+ bookings/refreshes it settles around 6488 bytes
+   free.
+2. Selecting/clearing a user rebuilt page 1 synchronously from inside the
+   card/button click callback, so `lv_obj_clean()` deleted the object currently
+   dispatching the event. `select_user()`, `select_guest()` and
+   `clear_selection()` now only update state and `queue_.push()`; the existing
+   housekeeping timer performs the rebuild on the next LVGL tick.
+3. The booking hot path now updates the visible balance and toast in place and
+   suppresses the service change callback once, so it does not rebuild page 1.
+   External topups/voids update the balance in place when a catalog fingerprint
+   shows that users/products did not change; hidden stats/system pages are
+   marked dirty and refreshed when entered. This stopped the repeated
+   object-churn/internal-heap drain seen under serial `void` stress.
+4. The final memory split is: 16 KiB LVGL stack, 10 KiB console stack (static
+   internal), 16 KiB HTTP stack, five-line RGB bounce buffer, LVGL CLIB malloc
+   with all allocations preferring PSRAM, Wi-Fi 4 static RX buffers, mDNS
+   task/memory in PSRAM. This boots, starts the AP/HTTP server with >5 KiB
+   HTTPD headroom, survives 10+ UI bookings, and keeps `status`/flash commands
+   working.
+
+Diagnostics: `ui tap <x> <y>` injects a press into the real LVGL indev callback;
+`ui book <user_id> <product_id>` queues `debug_select_user` + `debug_book` on
+the LVGL task. Both were exercised without a panic.
+
+
+## Page 3/report abort (follow-up)
+
+Repeated `GET /reports/transactions?...` and leaving the UI on page 3 aborted in
+newlib while creating a `FILE` lock:
+
+```text
+abort -> lock_init_generic -> __retarget_lock_init_recursive -> __sfp
+_fopen_r -> fopen -> JournalEventStore::file_size -> info()
+KaffeeServiceImpl::stats() -> UiAppImpl::update_system_dynamic
+```
+
+The LVGL housekeeping timer polled `stats()` every second; `stats()` called
+`JournalEventStore::info()`, whose `fopen`/`fclose` allocated newlib FILE locks
+from the tiny internal heap until it aborted.
+
+Fixes:
+
+- `JournalEventStore::info()` now uses `stat()` for file sizes/existence; no
+  `FILE` or lock allocation in the hot path. The host `FileEventStore` uses the
+  same base implementation; LittleFS totals still come from
+  `esp_littlefs_info()`.
+- `KaffeeService::stats()` caches storage/last-backup/drinks for 3 s and
+  invalidates the cache on mutations, backup export and factory reset.
+- Page 3 dynamic updates run only while page 3 is visible and at most every
+  5 s; hidden pages are marked dirty and refreshed on entry. Housekeeping no
+  longer touches the system page while another page is visible.
+- Host regressions call `JournalEventStore::info()` and
+  `KaffeeService::stats()` 5000 times and check storage values/fd count.
+
+Hardware evidence: 30× JSON + 10× CSV reports all returned 200; page 3 was held
+for ~10 minutes with `status` high-water stable (`heap_internal_free` 603–623 B,
+`lvgl_stack_free` 10088 B, no abort/reboot). UI `ui book`/`ui tap` still books;
+test events were voided afterwards.
+
+
+## PR #10 review follow-up
+
+- **B1:** `JournalEventStore::info()` no longer uses `fopen`/`fclose`; file
+  sizes use `stat()`. `stats()` caches storage/backup/drinks for 3 s, page 3
+  dynamic data refreshes only while visible and at most every 5 s, and
+  `next_request_id()` no longer reads stats. A >10-minute page-3 soak kept
+  `heap_internal_free` at ~139.5 KiB (`min` ~106 KiB, `largest` ~61 KiB) with
+  no abort/reboot.
+- **B2:** `ui tap`/`ui book` now require `unlock-writes` and use the same
+  write gate as `book`/`void`; docs and the console header were corrected.
+- **B3:** HTTPD high-water is exposed as `httpd_stack_free`. At 12 KiB it fell
+  to 1476 B after settings writes, so the stack was restored to 16 KiB and RAM
+  recovered from Wi-Fi RX buffers/console stack. With 16 KiB: 30× JSON + 10×
+  CSV reports, 10× backup, 5× settings PUT and a full 2.8 MB OTA write (SHA
+  mismatch, no boot switch) left `httpd_stack_free=5608 B` (~5.6 KiB headroom
+  on the 16 KiB stack).
+- **B4:** `tileview_changed_cb()` now consumes `stats_dirty_`/`system_dirty_`
+  and a swipe to Statistik after 10 bookings showed Nathy 10 / Babo 1 (updated
+  leaderboard, no stale page).
+- Nits: catalog fingerprint includes `guest_enabled`; it is recorded
+  unconditionally; in-place balance labels update colour; `suppress_change_`
+  was removed (callback always queues, fingerprint avoids rebuild); `lv_async_call`
+  failure returns `ERR ui-queue`; `inject_touch` returns false before UI ready;
+  `status` reports internal heap min/largest, LVGL and HTTPD high-water.
+
+
+## Tear-free page swipes (follow-up)
+
+Page swipes showed diagonal tearing because scanout read the single PSRAM
+framebuffer while LVGL drew into it. Implemented the `esp_lvgl_port` 2.9.0
+`avoid_tearing` path:
+
+- `rgb_config.num_fbs = 2` (two 480×480 RGB565 PSRAM FBs, ~900 KiB total),
+  five-line internal bounce buffer retained.
+- Full-screen `lvgl_port_display_cfg_t.buffer_size`, `direct_mode = true`,
+  `double_buffer = false`, and `rgb_config.flags.avoid_tearing = true`.
+- The flush swaps the panel FB and waits on the port's transfer semaphore
+  (`on_vsync` gives it from the RGB ISR). Rotation 0 is tear-free; 90/180/270
+  use the software-rotation buffer + copy path and are only functionally safe.
+- `lvgl_port_remove_disp()` is intentionally skipped; it would free the panel
+  FBs. Destructor calls `lvgl_port_deinit()` only.
+- Direct full-frame flushes starved the implicit LVGL indev timer, so the board
+  polls `lv_indev_read()` from an explicit 30 ms timer; physical and injected
+  touch work again.
+- Added `ui swipe <x1> <y1> <x2> <y2>` (write-gated) and read-only `ui page`.
+  A completed drag changes tileview pages; rotation changes were exercised.
+- 5-minute soak: 20 page swipes + 6 UI bookings, `heap_internal_free` stable at
+  ~160 KiB, `lvgl_stack_free` 6448 B, no abort/reboot. Webcam `/dev/video0`
+  disappeared from USB during the test, so the requested 60 fps visual frame
+  comparison could not be captured; functional and code-path evidence only.
 
 ## Evidence
 
-- `make test-host`: 139 cases / 17,421 assertions pass.
+- `make test-host`: 140 cases / 27,437 assertions pass (includes 5000×
+  `JournalEventStore::info()` / `KaffeeService::stats()` no-leak regressions).
 - `make check`: format, OpenAPI lint, docs links, host/web tests, web build,
   assets and size budgets pass.
 - `make build-docker` (ESP-IDF 5.5.6): app image 0x2b6cc0, 10% partition free.
@@ -109,3 +241,38 @@ Final webcam frames: `/tmp/opencode/t010-display/final-test.jpg`,
   source=unset`, AP provisioning up with fresh setup/AP passwords.
 - Live curl/serial transcripts captured in `/tmp/opencode/t010*` during the run
   (secrets redacted; final setup/AP values reported to the owner).
+
+## Review follow-up: stay-awake lock and console stack size
+
+Two defects found while reviewing the LVGL hardening:
+
+1. **AP stay-awake was page 3 only.** Moving the page rebuilds out of the hot
+   path also removed `refresh_system_page()` from the per-tick housekeeping, and
+   `set_stay_awake(network.ap_active)` lived inside it. Opening the hotspot from
+   page 1, the API or the serial console therefore never locked the panel, so it
+   could dim or sleep during provisioning. The simulator click-test caught it
+   (`click-test FAIL: active AP holds the panel awake`). The lock now follows
+   `update_headers()`, which housekeeping runs once per second on every page, and
+   `housekeeping()` gestures with `stay_awake_` instead of the page 3 label state
+   (`last_ap_active_` stays dedicated to the WLAN label rebuild).
+2. **Serial console stack was 4× its size.** `static StackType_t task_stack[10240]`
+   is 40 KiB in `.bss`, and ESP-IDF's `xTaskCreateStatic()` takes the depth in
+   *bytes* (unlike vanilla FreeRTOS), so `sizeof(task_stack)` reserved exactly
+   that: 40 KiB of internal DRAM instead of the intended 12 KiB, in the resource
+   this task is trying to conserve. The array is now sized in bytes.
+
+Hardware validation after erasing NVS, otadata and the LittleFS partition and
+flashing the CI image (`firmware/build/kaffeekasse.bin` @ `0x20000`):
+
+- Boot health: `nvs=1 storage=1 display=1 lvgl=1 service=1 ui=1 network=1 api=1
+  => ok`, `health check passed`, no panic lines.
+- Clean state: `seq=0 users=0 products=0 drinks_today=0 time=0 time_source=unset`,
+  storage 0/9 MiB used, provisioning AP `Kaffeekasse-B834` on 192.168.4.1.
+- Memory: `heap_internal_free=138127 heap_internal_largest=55296`
+  `lvgl_stack_free=8992 httpd_stack_free=15296` after taps/swipes.
+- Injected input on the clean UI: `ui tap` on the page dots walked 0→1→2→1→0 and
+  `ui swipe` walked 0→1→2; no panic, `uptime_s` continuous.
+- Stay-awake: with the AP up the panel stayed at `brightness=100` through 95 s of
+  idle; after `ap stop` it dimmed to `brightness=20` within the same window.
+- Known limitation: injected touches drive the LVGL indev only, so they do not
+  call `note_activity()` and cannot wake a dimmed panel. Real GT911 presses do.

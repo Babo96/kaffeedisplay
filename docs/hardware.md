@@ -104,9 +104,19 @@ applies the same rotation formula to pointer input).
   buffers stay 480×480.
 - Software rotation at 90/270 may impact fps; benchmark and prefer hardware scan
   direction if the ST7701 revision supports it.
-- The RGB panel uses one PSRAM scanout framebuffer (`num_fbs=1`) and two LVGL
-  draw buffers. Tear-free scanout double buffering is not provided by the
-  current `esp_lvgl_port` 2.9.0 integration.
+- The RGB panel uses two 480×480 RGB565 PSRAM scanout framebuffers (`num_fbs=2`)
+  and `esp_lvgl_port` `avoid_tearing` with full-screen direct-mode buffers. The
+  flush swaps the panel framebuffer at VSYNC and waits for the transfer
+  semaphore, so rotation 0 is tear-free during page swipes and animations.
+- Software rotation (90/180/270) uses the port's third rotation buffer and the
+  copy path; rendering works, but only rotation 0 has the VSYNC FB-swap
+  guarantee. Tear-free at rotated modes needs a custom flush/PPA path.
+- Because direct full-frame flushes keep the LVGL task busy, the board also
+  polls the real indev from an explicit 30 ms LVGL timer (`lv_indev_read()`);
+  the port's implicit indev timer alone is not serviced reliably in this mode.
+- `lvgl_port_remove_disp()` is not used: with `avoid_tearing`, the LVGL draw
+  buffers are the panel's two scanout FBs, and the port would free them. The
+  display lives for the firmware lifetime; destructor stops the port task.
 - Backlight: LEDC 19 kHz, 12-bit, gamma-corrected. 20 kHz at 12-bit is not
   reachable from the 80 MHz APB clock (it needs a divider below 1), so 19 kHz is
   used. Two on states: active and idle/dim. Screen-off after timeout; touch

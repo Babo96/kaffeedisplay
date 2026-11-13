@@ -10,6 +10,7 @@
 #include <vector>
 
 #include <fcntl.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #include "kaffee/json.hpp"
@@ -30,22 +31,16 @@ bool read_file(const std::string& path, std::string& out) {
 }
 
 bool file_exists(const std::string& path) {
-    std::FILE* f = std::fopen(path.c_str(), "rb");
-    if (f == nullptr) return false;
-    std::fclose(f);
-    return true;
+    struct stat st = {};
+    return ::stat(path.c_str(), &st) == 0;
 }
 
 uint64_t file_size(const std::string& path) {
-    std::FILE* f = std::fopen(path.c_str(), "rb");
-    if (f == nullptr) return 0;
-    if (std::fseek(f, 0, SEEK_END) != 0) {
-        std::fclose(f);
-        return 0;
-    }
-    const long size = std::ftell(f);
-    std::fclose(f);
-    return size < 0 ? 0 : static_cast<uint64_t>(size);
+    // stat() does not allocate a newlib FILE/lock. info() is called from the
+    // LVGL housekeeping timer; fopen() there exhausts the tiny internal heap.
+    struct stat st = {};
+    if (::stat(path.c_str(), &st) != 0) return 0;
+    return st.st_size < 0 ? 0 : static_cast<uint64_t>(st.st_size);
 }
 
 bool flush_and_sync(std::FILE* file) {

@@ -65,6 +65,10 @@ Result<std::unique_ptr<UiApp>> UiApp::create(IUiBackend& backend) {
     return Result<std::unique_ptr<UiApp>>::ok(std::move(app));
 }
 
+UiControl* control_for(UiApp* app) {
+    return app == nullptr ? nullptr : static_cast<UiAppImpl*>(app);
+}
+
 UiAppImpl::UiAppImpl(IUiBackend& backend) : backend_(backend) {}
 
 UiAppImpl::~UiAppImpl() {
@@ -238,7 +242,15 @@ void UiAppImpl::undo_last_booking() {
     if (result) {
         hide_toast();
         show_toast(strings::BOOK_UNDONE, false, "", kToastInfoMs);
-        queue_.push();
+        if (balance_label_ != nullptr) {
+            const Cents saldo = backend_.balance(selected_user_id_);
+            lv_label_set_text(balance_label_, format_balance(saldo).c_str());
+            lv_obj_set_style_text_color(
+                balance_label_,
+                theme::color(saldo < 0 ? theme::COLOR_NEGATIVE : theme::COLOR_POSITIVE), 0);
+        }
+        stats_dirty_ = true;
+        system_dirty_ = true;
     } else {
         show_toast(strings::BOOK_UNDO_FAILED, false, "", kToastInfoMs);
     }
@@ -248,21 +260,24 @@ void UiAppImpl::clear_selection() {
     selected_user_id_.clear();
     guest_mode_ = false;
     last_book_activity_ = lv_tick_get();
-    refresh_book_page();
+    // Never rebuild the page from inside the card/button click callback that
+    // selected it: lv_obj_clean() would delete the object currently dispatching
+    // the event. Housekeeping drains the queue on the next LVGL tick.
+    queue_.push();
 }
 
 void UiAppImpl::select_user(const User& user) {
     selected_user_id_ = user.id;
     guest_mode_ = false;
     last_book_activity_ = lv_tick_get();
-    refresh_book_page();
+    queue_.push();
 }
 
 void UiAppImpl::select_guest() {
     selected_user_id_.clear();
     guest_mode_ = true;
     last_book_activity_ = lv_tick_get();
-    refresh_book_page();
+    queue_.push();
 }
 
 void UiAppImpl::book_product(const Product& product) {
@@ -295,13 +310,58 @@ void UiAppImpl::book_product(const Product& product) {
                strings::COMMON_SEPARATOR + format_money(event.unit_amount_cents);
         show_toast(text, false, "", kToastInfoMs);
     } else {
+        const Cents saldo = backend_.balance(selected_user_id_);
         text = event.product_name + strings::BOOK_TOAST_SEPARATOR +
                format_money(event.unit_amount_cents) + strings::BOOK_TOAST_SEPARATOR +
-               strings::BOOK_BALANCE + " " + format_money(backend_.balance(selected_user_id_));
+               strings::BOOK_BALANCE + " " + format_money(saldo);
+        // Update the visible balance immediately; the queued refresh handles
+        // stats/leaderboard off the booking event callback.
+        if (balance_label_ != nullptr) {
+            lv_label_set_text(balance_label_, format_balance(saldo).c_str());
+            lv_obj_set_style_text_color(
+                balance_label_,
+                theme::color(saldo < 0 ? theme::COLOR_NEGATIVE : theme::COLOR_POSITIVE), 0);
+        }
         show_toast(text, true, event.id, kToastUndoMs);
     }
     last_book_activity_ = now;
-    queue_.push();
+    // The balance/toast were updated in place above. Do not rebuild page 1 from
+    // the booking event callback; hidden pages refresh when they are entered.
+    stats_dirty_ = true;
+    system_dirty_ = true;
+}
+
+uint64_t UiAppImpl::book_catalog_fingerprint() const {
+    uint64_t hash = 1469598103934665603ull;
+    auto mix = [&hash](uint64_t value) {
+        hash ^= value;
+        hash *= 1099511628211ull;
+    };
+    auto mix_text = [&mix](const std::string& text) {
+        for (unsigned char c : text) mix(c);
+        mix(0xff);
+    };
+    mix(selected_user_id_.empty() ? 0 : 1);
+    mix_text(selected_user_id_);
+    mix(guest_mode_ ? 1 : 0);
+    mix(backend_.app_settings().guest_enabled ? 1 : 0);
+    for (const User& user : backend_.users()) {
+        if (!user.active) continue;
+        mix_text(user.id);
+        mix_text(user.name);
+        mix_text(user.color);
+    }
+    for (const Product& product : backend_.products()) {
+        if (!product.active) continue;
+        mix_text(product.id);
+        mix_text(product.name);
+        mix_text(product.category);
+        mix_text(product.icon);
+        mix_text(product.color);
+        mix(static_cast<uint64_t>(product.price_cents));
+        mix(static_cast<uint64_t>(product.sort));
+    }
+    return hash;
 }
 
 void UiAppImpl::refresh_data() {
@@ -313,9 +373,30 @@ void UiAppImpl::refresh_data() {
             guest_mode_ = false;
         }
     }
-    refresh_book_page();
-    refresh_stats_page();
-    refresh_system_page();
+    const uint64_t fingerprint = book_catalog_fingerprint();
+    if (fingerprint != last_book_fingerprint_) {
+        refresh_book_page();
+    } else if (balance_label_ != nullptr && !selected_user_id_.empty()) {
+        // Topups/voids from the API/serial CLI change only the balance; update
+        // the visible label instead of rebuilding the whole page.
+        const Cents saldo = backend_.balance(selected_user_id_);
+        lv_label_set_text(balance_label_, format_balance(saldo).c_str());
+        lv_obj_set_style_text_color(
+            balance_label_, theme::color(saldo < 0 ? theme::COLOR_NEGATIVE : theme::COLOR_POSITIVE),
+            0);
+    }
+    if (current_page_ == 1) {
+        refresh_stats_page();
+        stats_dirty_ = false;
+    } else {
+        stats_dirty_ = true;
+    }
+    if (current_page_ == 2) {
+        refresh_system_page();
+        system_dirty_ = false;
+    } else {
+        system_dirty_ = true;
+    }
     update_headers();
 }
 
@@ -324,6 +405,11 @@ void UiAppImpl::update_headers() {
     for (lv_obj_t* label : clock_labels_) {
         if (label != nullptr) lv_label_set_text(label, clock.c_str());
     }
+    // The admin hotspot must hold the panel awake on every page: it can be
+    // opened from page 3, the API or the serial console while page 0 is
+    // visible. Housekeeping calls this once per second on all pages, so the
+    // lock cannot go stale while page 3 is not being drawn.
+    set_stay_awake(backend_.network_status().ap_active);
 }
 
 void UiAppImpl::set_stay_awake(bool enabled) {
@@ -348,6 +434,15 @@ void UiAppImpl::show_page(int index, bool animate) {
                                   animate ? LV_ANIM_ON : LV_ANIM_OFF);
     current_page_ = index;
     page_entered_at_ = lv_tick_get();
+    if (index == 2) last_system_dynamic_ms_ = 0;
+    if (index == 1 && stats_dirty_) {
+        refresh_stats_page();
+        stats_dirty_ = false;
+    }
+    if (index == 2 && system_dirty_) {
+        refresh_system_page();
+        system_dirty_ = false;
+    }
     update_dots();
 }
 
@@ -394,8 +489,9 @@ void UiAppImpl::housekeeping() {
         clear_selection();
     }
 
-    if (last_ap_active_) {
-        // Keep the panel awake while the admin hotspot is open.
+    if (stay_awake_) {
+        // Keep the panel awake while the admin hotspot is open; the lock is
+        // refreshed by update_headers() on every page.
         lv_display_trigger_activity(nullptr);
     }
     if (current_page_ != 0 && now - page_entered_at_ >= kAutoReturnMs) {
@@ -413,7 +509,11 @@ void UiAppImpl::housekeeping() {
     if (now - last_header_update_ >= 1000 || last_header_update_ == 0) {
         last_header_update_ = now;
         update_headers();
-        refresh_system_page();
+        if (current_page_ == 2) {
+            refresh_system_page();
+        } else {
+            system_dirty_ = true;
+        }
     }
 }
 
@@ -429,12 +529,10 @@ void UiAppImpl::apply_hold_state() {
 std::string UiAppImpl::next_request_id(const char* prefix) {
     ++request_counter_;
     const TimeInfo time = backend_.time_info();
-    const SystemStats stats = backend_.stats();
-    // Uptime + wall clock make the id unique across reboots even though the
-    // counter and LVGL tick start at zero again.
-    return std::string("ui-") + prefix + "-" + std::to_string(stats.uptime_s) + "-" +
-           std::to_string(time.now) + "-" + std::to_string(request_counter_) + "-" +
-           std::to_string(lv_tick_get());
+    // No flash-backed stats() here: wall clock + LVGL tick + counter are enough
+    // for a boot-local id and keep the booking path free of storage I/O.
+    return std::string("ui-") + prefix + "-" + std::to_string(time.now) + "-" +
+           std::to_string(request_counter_) + "-" + std::to_string(lv_tick_get());
 }
 
 void UiAppImpl::wake() {
@@ -539,6 +637,17 @@ void UiAppImpl::tileview_changed_cb(lv_event_t* event) {
             if (app->current_page_ != i) {
                 app->current_page_ = i;
                 app->page_entered_at_ = lv_tick_get();
+                if (i == 1 && app->stats_dirty_) {
+                    app->refresh_stats_page();
+                    app->stats_dirty_ = false;
+                }
+                if (i == 2) {
+                    app->last_system_dynamic_ms_ = 0;
+                    if (app->system_dirty_) {
+                        app->refresh_system_page();
+                        app->system_dirty_ = false;
+                    }
+                }
                 app->update_dots();
             }
             break;

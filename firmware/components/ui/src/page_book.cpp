@@ -76,6 +76,8 @@ void UiAppImpl::build_page_book(lv_obj_t* tile) {
 
 void UiAppImpl::refresh_book_page() {
     if (book_body_ == nullptr) return;
+    balance_label_ = nullptr;
+    last_book_fingerprint_ = book_catalog_fingerprint();
     lv_obj_clean(book_body_);
 
     std::vector<User> active_users;
@@ -117,7 +119,7 @@ void UiAppImpl::refresh_book_page() {
                               theme::color(theme::COLOR_MUTED));
         } else {
             Cents saldo = backend_.balance(user->id);
-            theme::make_label(
+            balance_label_ = theme::make_label(
                 names, format_balance(saldo).c_str(), theme::font_body_bold(),
                 theme::color(saldo < 0 ? theme::COLOR_NEGATIVE : theme::COLOR_POSITIVE));
         }
