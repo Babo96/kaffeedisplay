@@ -116,7 +116,7 @@ screenshots: sim-build
 	./sim/build/kaffeekasse-sim --screenshot $(SCREENSHOT_DIR)/04-leaderboard.png --page 2 --state idle
 	./sim/build/kaffeekasse-sim --screenshot $(SCREENSHOT_DIR)/05-system-ap-qr.png --page 3 --state ap
 	./sim/build/kaffeekasse-sim --screenshot $(SCREENSHOT_DIR)/06-page1-15-users.png --page 1 --users 15
-	./sim/build/kaffeekasse-sim --screenshot $(SCREENSHOT_DIR)/07-page1-30-users-scrolled.png --page 1 --users 30 --scroll 500
+	./sim/build/kaffeekasse-sim --screenshot $(SCREENSHOT_DIR)/07-page1-30-users-page3.png --page 1 --users 30 --book-page 2
 	./sim/build/kaffeekasse-sim --screenshot $(SCREENSHOT_DIR)/08-page1-30-users-usage-order.png --page 1 --users 30 --order usage
 
 screenshots-check: sim-build

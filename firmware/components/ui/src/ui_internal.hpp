@@ -59,7 +59,7 @@ class UiAppImpl final : public UiApp, public UiControl {
     void debug_select_user(const std::string& user_id) override;
     void debug_book(const std::string& product_id) override;
     void debug_deselect() override;
-    void debug_scroll(int dy) override;
+    void debug_book_page(int page) override;
 
   private:
     struct IdContext {
@@ -126,6 +126,8 @@ class UiAppImpl final : public UiApp, public UiControl {
     static void product_click_cb(lv_event_t* event);
     static void change_user_cb(lv_event_t* event);
     static void guest_click_cb(lv_event_t* event);
+    static void book_page_prev_cb(lv_event_t* event);
+    static void book_page_next_cb(lv_event_t* event);
     static void undo_cb(lv_event_t* event);
     static void month_prev_cb(lv_event_t* event);
     static void month_next_cb(lv_event_t* event);
@@ -156,6 +158,11 @@ class UiAppImpl final : public UiApp, public UiControl {
     // Page 1
     lv_obj_t* book_body_ = nullptr;
     lv_obj_t* guest_button_ = nullptr;
+    // Member pages: 12 tiles per page, switched with the arrows on the right.
+    lv_obj_t* page_prev_button_ = nullptr;
+    lv_obj_t* page_next_button_ = nullptr;
+    lv_obj_t* page_indicator_ = nullptr;
+    int book_page_ = 0;
     lv_obj_t* balance_label_ = nullptr;
     uint64_t last_book_fingerprint_ = 0;
     std::string selected_user_id_;

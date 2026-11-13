@@ -23,7 +23,7 @@ struct Options {
     int rotation = 0;
     std::string state = "idle";
     int users = 0;
-    int scroll = 0;
+    int book_page = 0;
     std::string order = "usage";
     bool click_test = false;
     bool help = false;
@@ -41,10 +41,10 @@ void print_usage(const char* argv0) {
     std::printf(
         "Usage: %s [--page 1|2|3] [--rotation 0|90|180|270]\n"
         "          [--screenshot FILE [--state idle|selected|toast|ap]]\n"
-        "          [--users N] [--scroll PX] [--order creation|usage]\n"
+        "          [--users N] [--book-page N] [--order creation|usage]\n"
         "          [--click-test]\n\n"
         "  --users N   grow the seeded fund to N active members (N >= 5)\n"
-        "  --scroll PX scroll the page-1 member list down by PX before capturing\n"
+        "  --book-page N  show member page N (12 per page) before capturing\n"
         "  --order     member order; `usage` (default) = most bookings this\n"
         "              month first, `creation` = join order\n\n"
         "Mouse = touch. Keys: 1/2/3 pages, r rotation, +/- brightness, q quit.\n",
@@ -77,10 +77,10 @@ bool parse_options(int argc, char** argv, Options* options) {
             std::string value;
             if (!next(&value)) return false;
             options->users = std::atoi(value.c_str());
-        } else if (arg == "--scroll") {
+        } else if (arg == "--book-page") {
             std::string value;
             if (!next(&value)) return false;
-            options->scroll = std::atoi(value.c_str());
+            options->book_page = std::atoi(value.c_str());
         } else if (arg == "--order") {
             if (!next(&options->order)) return false;
         } else if (arg == "--click-test") {
@@ -107,30 +107,8 @@ bool parse_options(int argc, char** argv, Options* options) {
         std::fprintf(stderr, "--order must be `creation` or `usage`\n");
         return false;
     }
-    if (options->scroll < 0) return false;
+    if (options->book_page < 0) return false;
     return true;
-}
-
-// Finds the container that actually scrolls vertically (the page-1 member list)
-// so `--scroll` can capture a scrolled state without faking touch gestures.
-void find_vertical_scroller(lv_obj_t* obj, lv_obj_t** best, int* best_bottom) {
-    const uint32_t children = lv_obj_get_child_count(obj);
-    for (uint32_t i = 0; i < children; ++i) {
-        lv_obj_t* child = lv_obj_get_child(obj, i);
-        // Only the page that is currently in the tileview's viewport can be the
-        // target: the other two pages sit at x = 480 and x = 960.
-        lv_area_t area;
-        lv_obj_get_coords(child, &area);
-        const bool on_screen = area.x1 >= 0 && area.x2 < 480;
-        if (on_screen && (lv_obj_get_scroll_dir(child) & LV_DIR_VER) != 0) {
-            const int bottom = lv_obj_get_scroll_bottom(child);
-            if (bottom > *best_bottom) {
-                *best = child;
-                *best_bottom = bottom;
-            }
-        }
-        find_vertical_scroller(child, best, best_bottom);
-    }
 }
 
 }  // namespace
@@ -212,20 +190,11 @@ int main(int argc, char** argv) {
             g_fixed_tick += 16;
             lv_timer_handler();
         }
-        if (options.scroll > 0) {
-            lv_obj_update_layout(lv_screen_active());
-            lv_obj_t* best = nullptr;
-            int best_bottom = 0;
-            find_vertical_scroller(lv_screen_active(), &best, &best_bottom);
-            if (best != nullptr) {
-                lv_obj_scroll_to_y(best, options.scroll, LV_ANIM_OFF);
-                lv_obj_update_layout(lv_screen_active());
-                for (int frame = 0; frame < 30; ++frame) {
-                    g_fixed_tick += 16;
-                    lv_timer_handler();
-                }
-            } else {
-                std::fprintf(stderr, "warning: --scroll found no vertical scroller\n");
+        if (options.book_page > 0) {
+            control->debug_book_page(options.book_page);
+            for (int frame = 0; frame < 30; ++frame) {
+                g_fixed_tick += 16;
+                lv_timer_handler();
             }
         }
         if (!display.save_screenshot(options.screenshot)) {
@@ -233,9 +202,10 @@ int main(int argc, char** argv) {
             return 1;
         }
         std::printf(
-            "screenshot: %s (page %d, rotation %d, state %s, users %d, scroll %d, order %s)\n",
+            "screenshot: %s (page %d, rotation %d, state %s, users %d, book_page %d, "
+            "order %s)\n",
             options.screenshot.c_str(), options.page, options.rotation, options.state.c_str(),
-            options.users, options.scroll, options.order.c_str());
+            options.users, options.book_page, options.order.c_str());
         return 0;
     }
 

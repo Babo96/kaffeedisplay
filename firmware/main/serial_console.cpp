@@ -539,13 +539,16 @@ class SerialConsole {
             lv_obj_invalidate(lv_screen_active());
             lv_refr_now(nullptr);
             const int64_t full_us = esp_timer_get_time() - t0;
+            // Page switch: the member grid now pages instead of scrolling, so
+            // this measures the same work a user triggers with an arrow tap.
             t0 = esp_timer_get_time();
-            ui->debug_scroll(40);
+            ui->debug_book_page(1);
             lv_refr_now(nullptr);
-            const int64_t scroll_us = esp_timer_get_time() - t0;
+            const int64_t page_us = esp_timer_get_time() - t0;
+            ui->debug_book_page(0);
             display_.unlock();
-            reply("OK ui bench full_refresh_ms=%.1f scroll_step_ms=%.1f",
-                  static_cast<double>(full_us) / 1000.0, static_cast<double>(scroll_us) / 1000.0);
+            reply("OK ui bench full_refresh_ms=%.1f page_switch_ms=%.1f",
+                  static_cast<double>(full_us) / 1000.0, static_cast<double>(page_us) / 1000.0);
             return;
         }
         if (tokens.size() == 2 && tokens[1] == "page") {

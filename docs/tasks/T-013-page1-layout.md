@@ -178,7 +178,7 @@ the global `theme::hide_scrollbars`, which stays in place for the other bodies.
 
 Additionally, motion is the affordance on a touch screen: content follows the
 finger, and the clipped row at the top of a scrolled list makes the direction
-obvious (see [07-page1-30-users-scrolled.png](../ui/screenshots/07-page1-30-users-scrolled.png)).
+obvious (see [07-page1-30-users-page3.png](../ui/screenshots/07-page1-30-users-page3.png)).
 
 ---
 
@@ -346,7 +346,7 @@ Committed states (current implementation, reproducible via `make screenshots`):
 | File | State |
 |---|---|
 | [06-page1-15-users.png](../ui/screenshots/06-page1-15-users.png) | 15 members, unscrolled — the "already too many" evidence: 9 of 15 readable, 4th row cut |
-| [07-page1-30-users-scrolled.png](../ui/screenshots/07-page1-30-users-scrolled.png) | 30 members, scrolled 500 px — what a scrolled state looks like |
+| [07-page1-30-users-page3.png](../ui/screenshots/07-page1-30-users-page3.png) | 30 members, scrolled 500 px — what a scrolled state looks like |
 | [08-page1-30-users-usage-order.png](../ui/screenshots/08-page1-30-users-usage-order.png) | 30 members, `usage` order — busiest members first, no grouping |
 
 The *proposed* 4 × 80 geometry was measured and reviewed on a throwaway local
@@ -395,3 +395,32 @@ grid.
 
 Verified in the simulator at 30 members: 16 tiles visible, scrollbar present,
 guest action always visible; `make test-ui` passes.
+
+---
+
+## 12. Superseded interaction: paging replaces scrolling
+
+The 4-column grid with a scrollable body (sections 3 and 4) is superseded. On the
+device, dragging the list redraws the whole viewport per pointer sample, and this
+panel cannot sustain that: measured ~25 fps after the draw-path rework and far
+worse before it, with the newly exposed rows arriving a beat late ("popping in").
+
+The implemented layout:
+
+| Property | Value |
+|---|---|
+| Grid | 3 columns x 4 rows = **12 members per page** |
+| Tile | 124 x 80 px |
+| Arrow strip | 44 px wide at x = 420, two 44 x 56 px chevron buttons at y = 96 and 192 |
+| Page counter | `n/N` between the arrows (`font_small`, muted) |
+| Scrolling | none — `LV_DIR_NONE` on the body, no scrollbar |
+| Guest action | unchanged (header band, see section 11) |
+
+Consequences: a page switch is one full-body rebuild (deferred through the queue),
+the member page is part of the page-1 fingerprint so data changes do not silently
+reset it, and the arrows are hidden entirely when there is only one page. At 30
+members that is 3 pages; the sorting from T-013 puts the most frequent members on
+page 1.
+
+`--scroll` in the simulator is replaced by `--book-page N`, and
+`07-page1-30-users-page3.png` became `07-page1-30-users-page3.png`.

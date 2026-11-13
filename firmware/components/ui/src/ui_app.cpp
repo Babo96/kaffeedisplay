@@ -341,6 +341,8 @@ uint64_t UiAppImpl::book_catalog_fingerprint() const {
         for (unsigned char c : text) mix(c);
         mix(0xff);
     };
+    // The visible member page is part of the rendered state.
+    mix(static_cast<uint64_t>(book_page_));
     mix(selected_user_id_.empty() ? 0 : 1);
     mix_text(selected_user_id_);
     mix(guest_mode_ ? 1 : 0);
@@ -476,9 +478,10 @@ void UiAppImpl::debug_deselect() {
     clear_selection();
 }
 
-void UiAppImpl::debug_scroll(int dy) {
+void UiAppImpl::debug_book_page(int page) {
     if (book_body_ == nullptr) return;
-    lv_obj_scroll_by(book_body_, 0, dy, LV_ANIM_OFF);
+    book_page_ = page < 0 ? 0 : page;
+    refresh_book_page();
 }
 
 void UiAppImpl::tick() {

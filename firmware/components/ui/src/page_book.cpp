@@ -11,6 +11,24 @@
 
 namespace kaffee::ui {
 
+namespace {
+
+// The UI fonts are subset to German text and contain no arrow glyphs, so the page
+// arrows are drawn as a chevron polyline instead of a label.
+lv_obj_t* make_chevron(lv_obj_t* parent, bool up) {
+    static lv_point_precise_t up_points[3] = {{0, 10}, {10, 0}, {20, 10}};
+    static lv_point_precise_t down_points[3] = {{0, 0}, {10, 10}, {20, 0}};
+    lv_obj_t* line = lv_line_create(parent);
+    lv_line_set_points(line, up ? up_points : down_points, 3);
+    lv_obj_set_style_line_width(line, 4, 0);
+    lv_obj_set_style_line_rounded(line, true, 0);
+    lv_obj_set_style_line_color(line, theme::color(theme::COLOR_TEXT), 0);
+    lv_obj_set_clickable(line, false);
+    return line;
+}
+
+}  // namespace
+
 // Each preset is a distinct 38x38 I4 indexed illustration with an ARGB8888
 // palette, held in flash and drawn at runtime; no decoder or upload is involved.
 // Users without a preset fall back to coloured initials. Shared by the booking
@@ -90,14 +108,9 @@ void UiAppImpl::build_page_book(lv_obj_t* tile) {
     lv_obj_set_style_pad_top(book_body_, 8, 0);
     lv_obj_set_style_pad_bottom(book_body_, 8, 0);
     lv_obj_set_style_pad_row(book_body_, 8, 0);
-    lv_obj_set_scroll_dir(book_body_, LV_DIR_VER);
-    // The member list must show that it continues: a slim scrollbar appears only
-    // when the grid is taller than the body (30+ members) and costs no objects.
-    lv_obj_set_scrollbar_mode(book_body_, LV_SCROLLBAR_MODE_ON);
-    lv_obj_set_style_width(book_body_, 4, LV_PART_SCROLLBAR);
-    lv_obj_set_style_bg_color(book_body_, theme::color(theme::COLOR_DIM), LV_PART_SCROLLBAR);
-    lv_obj_set_style_bg_opa(book_body_, LV_OPA_COVER, LV_PART_SCROLLBAR);
-    lv_obj_set_style_radius(book_body_, 2, LV_PART_SCROLLBAR);
+    // Members are paged, not scrolled: the body never scrolls.
+    lv_obj_set_scroll_dir(book_body_, LV_DIR_NONE);
+    theme::hide_scrollbars(book_body_);
 
     refresh_book_page();
 }
@@ -110,6 +123,12 @@ void UiAppImpl::refresh_book_page() {
     if (guest_button_ != nullptr) {
         lv_obj_delete(guest_button_);
         guest_button_ = nullptr;
+    }
+    for (lv_obj_t** button : {&page_prev_button_, &page_next_button_, &page_indicator_}) {
+        if (*button != nullptr) {
+            lv_obj_delete(*button);
+            *button = nullptr;
+        }
     }
     last_book_fingerprint_ = book_catalog_fingerprint();
     lv_obj_clean(book_body_);
@@ -263,20 +282,38 @@ void UiAppImpl::refresh_book_page() {
         theme::set_wrapped(text);
     }
 
+    // Member pages instead of scrolling: 3 columns x 4 rows = 12 tiles, with the
+    // page arrows in the right margin. Scrolling a 29-member list redrew the
+    // whole viewport per drag sample, which this panel cannot do smoothly;
+    // paging redraws once per arrow press.
+    constexpr int kColumns = 3;
+    constexpr int kRowsPerPage = 4;
+    constexpr int kPerPage = kColumns * kRowsPerPage;
+    const int page_count = active_users.empty()
+                               ? 1
+                               : static_cast<int>((active_users.size() + kPerPage - 1) / kPerPage);
+    if (book_page_ >= page_count) book_page_ = page_count - 1;
+    if (book_page_ < 0) book_page_ = 0;
+    const size_t first = static_cast<size_t>(book_page_) * kPerPage;
+    const size_t last = std::min(active_users.size(), first + kPerPage);
+
     lv_obj_t* grid = lv_obj_create(book_body_);
     theme::make_transparent(grid);
     lv_obj_set_clickable(grid, false);
-    lv_obj_set_width(grid, lv_pct(100));
+    lv_obj_set_width(grid, 388);
     lv_obj_set_height(grid, LV_SIZE_CONTENT);
     lv_obj_set_flex_flow(grid, LV_FLEX_FLOW_ROW_WRAP);
     lv_obj_set_style_pad_column(grid, 8, 0);
     lv_obj_set_style_pad_row(grid, 8, 0);
+    lv_obj_set_scrollable(grid, false);
     theme::hide_scrollbars(grid);
 
-    for (const User& member : active_users) {
+    for (size_t index = first; index < last; ++index) {
+        const User& member = active_users[index];
         lv_obj_t* item = lv_obj_create(grid);
-        // 4 columns of 106 px + 3 gaps of 8 px = 448 px of content.
-        lv_obj_set_size(item, 106, 80);
+        // 3 columns of 124 px + 2 gaps of 8 px = 388 px; the arrows live in the
+        // 44 px strip to the right of it.
+        lv_obj_set_size(item, 124, 80);
         lv_obj_set_style_bg_color(item, theme::color(theme::COLOR_SURFACE), 0);
         lv_obj_set_style_bg_opa(item, LV_OPA_COVER, 0);
         lv_obj_set_style_radius(item, 20, 0);
@@ -299,6 +336,48 @@ void UiAppImpl::refresh_book_page() {
         lv_obj_add_event_cb(item, &UiAppImpl::user_click_cb, LV_EVENT_CLICKED, ctx);
         lv_obj_add_event_cb(item, &UiAppImpl::delete_context_cb, LV_EVENT_DELETE, ctx);
     }
+
+    if (page_count > 1 && book_body_ != nullptr) {
+        lv_obj_t* tile = lv_obj_get_parent(book_body_);
+        const int strip_x = 480 - 16 - 44;
+        page_prev_button_ = theme::make_button(tile, "", false);
+        lv_obj_set_pos(page_prev_button_, strip_x, 96);
+        lv_obj_set_size(page_prev_button_, 44, 56);
+        lv_obj_center(make_chevron(page_prev_button_, true));
+        if (book_page_ == 0) lv_obj_add_state(page_prev_button_, LV_STATE_DISABLED);
+        lv_obj_add_event_cb(page_prev_button_, &UiAppImpl::book_page_prev_cb, LV_EVENT_CLICKED,
+                            this);
+
+        std::string indicator_text =
+            std::to_string(book_page_ + 1) + "/" + std::to_string(page_count);
+        page_indicator_ = theme::make_label(tile, indicator_text.c_str(), theme::font_small(),
+                                            theme::color(theme::COLOR_MUTED));
+        lv_obj_set_pos(page_indicator_, strip_x + 4, 166);
+        lv_obj_set_width(page_indicator_, 36);
+        lv_obj_set_style_text_align(page_indicator_, LV_TEXT_ALIGN_CENTER, 0);
+
+        page_next_button_ = theme::make_button(tile, "", false);
+        lv_obj_set_pos(page_next_button_, strip_x, 192);
+        lv_obj_set_size(page_next_button_, 44, 56);
+        lv_obj_center(make_chevron(page_next_button_, false));
+        if (book_page_ >= page_count - 1) lv_obj_add_state(page_next_button_, LV_STATE_DISABLED);
+        lv_obj_add_event_cb(page_next_button_, &UiAppImpl::book_page_next_cb, LV_EVENT_CLICKED,
+                            this);
+    }
+}
+
+void UiAppImpl::book_page_prev_cb(lv_event_t* event) {
+    auto* app = static_cast<UiAppImpl*>(lv_event_get_user_data(event));
+    if (app == nullptr || app->book_page_ == 0) return;
+    --app->book_page_;
+    app->queue_.push();
+}
+
+void UiAppImpl::book_page_next_cb(lv_event_t* event) {
+    auto* app = static_cast<UiAppImpl*>(lv_event_get_user_data(event));
+    if (app == nullptr) return;
+    ++app->book_page_;
+    app->queue_.push();
 }
 
 void UiAppImpl::user_click_cb(lv_event_t* event) {

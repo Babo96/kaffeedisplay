@@ -15,8 +15,12 @@ dot to change pages; product taps never trigger navigation.
   without a booking last). The admin setting **Reihenfolge der Benutzer** can
   switch to `Wie angelegt` (join order). Guest sales never count, and an unset
   clock keeps the join order. See ADR 0015.
-- Sized for 30+ members: the grid stays readable and touchable at that count and
-  degrades gracefully beyond it; see `docs/tasks/T-013-page1-layout.md`.
+- Sized for 30+ members: **12 members per page** (3 x 4 tiles of 124 x 80 px) with
+  `▲` / `▼` arrows and a `1/3` counter in the right margin. The list never
+  scrolls: paging redraws once per arrow press, while a drag redrew the whole
+  viewport per pointer sample (this panel cannot do that smoothly). The arrows
+  hide when everything fits on one page. See
+  `docs/tasks/T-013-page1-layout.md`.
 - Empty state: `Keine Benutzer – Admin: Seite 3 → WLAN starten`.
 - Selected: name + `Wechseln`, saldo (green credit / red `Offen`), product tiles
   with icon, name and price.

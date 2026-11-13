@@ -35,7 +35,7 @@ states used by the [T-013 layout decision record](../../tasks/T-013-page1-layout
 
 | 15 members | 30 members, scrolled |
 |---|---|
-| ![15 users](06-page1-15-users.png) | ![30 users scrolled](07-page1-30-users-scrolled.png) |
+| ![15 users](06-page1-15-users.png) | ![30 users scrolled](07-page1-30-users-page3.png) |
 
 | 30 members, most frequent first (`user_sort = usage`) |
 |---|
