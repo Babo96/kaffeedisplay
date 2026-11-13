@@ -908,9 +908,11 @@ DisplayInfo EspDisplay::info() const {
     result.backlight_on = result.brightness_percent > 0;
     result.ui_fps = static_cast<float>(ui_fps_milli_.load()) / 1000.0f;
     // 1 / (h_total * v_total / pclk) for the configured RGB timings.
-    const int h_total = kWidth + kLcdHsyncPulse + kLcdHsyncBackPorch + kLcdHsyncFrontPorch;
-    const int v_total = kHeight + kLcdVsyncPulse + kLcdVsyncBackPorch + kLcdVsyncFrontPorch;
-    const double frame_s = static_cast<double>(h_total) * v_total / kLcdPclkHz;
+    const int h_total =
+        kWidth + board::kLcdHsyncPulse + board::kLcdHsyncBackPorch + board::kLcdHsyncFrontPorch;
+    const int v_total =
+        kHeight + board::kLcdVsyncPulse + board::kLcdVsyncBackPorch + board::kLcdVsyncFrontPorch;
+    const double frame_s = static_cast<double>(h_total) * v_total / board::kLcdPclkHz;
     result.panel_hz = frame_s > 0 ? static_cast<float>(1.0 / frame_s) : 0.0f;
     return result;
 }
