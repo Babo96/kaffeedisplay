@@ -32,6 +32,10 @@ namespace {
 
 constexpr const char* kTag = "board";
 
+// The flush wrapper is display-wide and the board owns exactly one display.
+EspDisplay* g_flush_self = nullptr;
+lv_display_flush_cb_t g_port_flush = nullptr;
+
 // The LEDC divider must be >= 1. On the ESP32-S3 APB clock (80 MHz),
 // 20 kHz * 2^12 = 81.92 MHz exceeds the clock, so 19 kHz is the closest
 // 12-bit setting that is actually reachable.
@@ -1202,14 +1206,6 @@ Result<Unit> EspDisplay::show_test_pattern() {
     ESP_LOGI(kTag, "display test pattern shown for 15 s (rotation %d)", rotation_.load());
     return Result<Unit>::ok(Unit{});
 }
-
-namespace {
-
-// The flush wrapper is display-wide and the board owns exactly one display.
-EspDisplay* g_flush_self = nullptr;
-lv_display_flush_cb_t g_port_flush = nullptr;
-
-}  // namespace
 
 void EspDisplay::note_flush(int64_t duration_us) {
     flush_last_us_.store(static_cast<uint32_t>(duration_us));
