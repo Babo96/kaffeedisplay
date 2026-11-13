@@ -5,7 +5,7 @@ import { chromium } from "@playwright/test";
 
 const BASE = "http://127.0.0.1:5173";
 const MOCK = "http://127.0.0.1:8787/api/v1/health";
-const OUT = path.resolve(process.cwd(), "../docs/ui/screenshots");
+const OUT = path.resolve(process.cwd(), "../docs/ui/screenshots/web");
 
 const children = [];
 

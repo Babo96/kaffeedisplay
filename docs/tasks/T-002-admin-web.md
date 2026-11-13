@@ -56,7 +56,7 @@ found — coordinate first).
 ## Evidence
 
 - PR: https://github.com/Babo96/kaffeedisplay/pull/6
-- Screenshots: `docs/ui/screenshots/web-*.png`, regenerated with
+- Screenshots: `docs/ui/screenshots/web/web-*.png`, regenerated with
   `npm --prefix web run screenshots` (starts mock + Vite itself).
 - Unit: `npm --prefix web test` — 26 tests (money parse/format incl. junk
   input, Europe/Berlin DST periods, report summaries, CSRF refresh, QR,
