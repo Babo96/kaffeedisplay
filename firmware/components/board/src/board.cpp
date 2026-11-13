@@ -1063,8 +1063,14 @@ Result<Unit> EspDisplay::init_lvgl() {
     // serial CLI, and clamped here for settings stored by older firmware.
     display_config.flags.sw_rotate = false;
     display_config.flags.swap_bytes = false;
-    display_config.flags.full_refresh = false;
-    display_config.flags.direct_mode = true;
+    // Render whole frames instead of partial invalid areas. With avoid_tearing
+    // the port pushes the *full* framebuffer and waits for VSYNC on every flush,
+    // so a scroll that invalidates several bands pays one frame-time per band
+    // (measured: 1-9 fps while dragging). Full-refresh mode trades the partial
+    // redraw for exactly one flush per frame (~27 ms render + one VSYNC wait on
+    // this panel), which is what makes scrolling usable.
+    display_config.flags.full_refresh = true;
+    display_config.flags.direct_mode = false;
 
     lvgl_port_display_rgb_cfg_t rgb_config = {};
     rgb_config.flags.bb_mode = false;
