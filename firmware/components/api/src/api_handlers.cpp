@@ -460,15 +460,20 @@ esp_err_t handle_users_transactions(RequestContext& ctx) {
     int64_t limit = query_int(query, "limit").value_or(50);
     if (limit < 1) limit = 1;
     if (limit > 200) limit = 200;
-    auto before = query_int(query, "before");
-    if (before && *before < 0) before.reset();
+    // Keep this as plain values: GCC's -O2 warns about the optional's storage
+    // being possibly uninitialised when it is copied around (api_handlers.cpp
+    // must stay warning-free, warnings are errors in this project).
+    const auto before_param = query_int(query, "before");
+    const bool has_before = before_param.has_value() && *before_param >= 0;
+    const uint64_t before_seq =
+        has_before ? static_cast<uint64_t>(*before_param) : static_cast<uint64_t>(0);
 
     std::vector<const Event*> selected;
     const auto& events = service.events();
     for (auto it = events.rbegin();
          it != events.rend() && selected.size() < static_cast<size_t>(limit); ++it) {
         if (it->user_id != id) continue;
-        if (before && it->seq >= static_cast<uint64_t>(*before)) continue;
+        if (has_before && it->seq >= before_seq) continue;
         selected.push_back(&*it);
     }
     return send_json(ctx.req, 200, events_json(service, selected));
