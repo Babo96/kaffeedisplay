@@ -106,6 +106,9 @@ jobs:
 
   preview-container:
     runs-on: ubuntu-24.04
+    # Guards tools/preview (browser-accessible simulator). Bounded so a stuck
+    # X11/noVNC start fails fast instead of holding the queue.
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - name: Build browser-accessible LVGL Docker preview

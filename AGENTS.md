@@ -110,9 +110,7 @@ Never push directly to `main`. Never force-push a shared branch. Keep PRs small
   architecture changes, task file status).
 - `make check` green.
 - No new dependency without an ADR and a pinned version.
-- Screenshots/gifs for UI changes (simulator is fine), **regenerated in
-  the feature branch alongside the code and top-level README updates**. A PR
-  with a changed screen but old screenshots is not done.
+- Screenshots/gifs for UI changes (simulator is fine).
 - No unrelated reformatting.
 
 ## Testing without hardware

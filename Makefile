@@ -52,6 +52,7 @@ web: web/node_modules
 
 assets: web
 	$(PYTHON) tools/embed_web.py
+	$(PYTHON) tools/check_avatar_i4.py
 
 web-dev: web/node_modules
 	@bash -c '$(NPM) --prefix web run mock & MOCK_PID=$$!; trap "kill $$MOCK_PID" EXIT; $(NPM) --prefix web run dev'
