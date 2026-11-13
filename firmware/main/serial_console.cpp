@@ -530,6 +530,23 @@ class SerialConsole {
     }
 
     void cmd_ui(const std::vector<std::string>& tokens) {
+        if (tokens.size() == 2 && tokens[1] == "bench") {
+            ui::UiControl* ui = ui_control_.load();
+            if (ui == nullptr) return reply_error("ui-not-ready", "UI app is not running");
+            if (!display_.lock(3000)) return reply_error("display-busy", "LVGL did not yield");
+            int64_t t0 = esp_timer_get_time();
+            lv_obj_invalidate(lv_screen_active());
+            lv_refr_now(nullptr);
+            const int64_t full_us = esp_timer_get_time() - t0;
+            t0 = esp_timer_get_time();
+            ui->debug_scroll(40);
+            lv_refr_now(nullptr);
+            const int64_t scroll_us = esp_timer_get_time() - t0;
+            display_.unlock();
+            reply("OK ui bench full_refresh_ms=%.1f scroll_step_ms=%.1f",
+                  static_cast<double>(full_us) / 1000.0, static_cast<double>(scroll_us) / 1000.0);
+            return;
+        }
         if (tokens.size() == 2 && tokens[1] == "page") {
             ui::UiControl* ui = ui_control_.load();
             if (ui == nullptr) return reply_error("ui-not-ready", "UI app is not running");
@@ -594,7 +611,7 @@ class SerialConsole {
             return;
         }
         reply_error("ui-usage",
-                    "ui page | ui tap <x> <y> | ui swipe <x1> <y1> <x2> <y2> | "
+                    "ui page | ui bench | ui tap <x> <y> | ui swipe <x1> <y1> <x2> <y2> | "
                     "ui book <user_id> <product_id>");
     }
 

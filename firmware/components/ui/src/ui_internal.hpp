@@ -59,6 +59,7 @@ class UiAppImpl final : public UiApp, public UiControl {
     void debug_select_user(const std::string& user_id) override;
     void debug_book(const std::string& product_id) override;
     void debug_deselect() override;
+    void debug_scroll(int dy) override;
 
   private:
     struct IdContext {

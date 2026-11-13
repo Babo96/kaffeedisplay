@@ -20,6 +20,8 @@ class UiControl {
     virtual void debug_select_user(const std::string& user_id) = 0;
     virtual void debug_book(const std::string& product_id) = 0;
     virtual void debug_deselect() = 0;
+    // Scrolls the booking list by `dy` pixels (test/tooling only).
+    virtual void debug_scroll(int dy) = 0;
 };
 
 // Returns the control surface for the concrete UiApp implementation. Firmware

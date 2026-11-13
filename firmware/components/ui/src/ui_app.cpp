@@ -476,6 +476,11 @@ void UiAppImpl::debug_deselect() {
     clear_selection();
 }
 
+void UiAppImpl::debug_scroll(int dy) {
+    if (book_body_ == nullptr) return;
+    lv_obj_scroll_by(book_body_, 0, dy, LV_ANIM_OFF);
+}
+
 void UiAppImpl::tick() {
     if (started_) housekeeping();
 }
