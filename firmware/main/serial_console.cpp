@@ -263,6 +263,7 @@ class SerialConsole {
         if (command == "setup-password") return cmd_setup_password();
         if (command == "time") return cmd_time(tokens);
         if (command == "display") return cmd_display(tokens);
+        if (command == "settings") return cmd_settings(tokens);
         if (command == "ui") return cmd_ui(tokens);
         if (command == "book") return cmd_book(tokens);
         if (command == "void") return cmd_void(tokens);
@@ -275,8 +276,8 @@ class SerialConsole {
 
     void cmd_help() {
         reply(
-            "OK help commands=help,status,ap,setup-password,time,display,ui,book,void,"
-            "unlock-writes,backup,factory-reset,reboot");
+            "OK help commands=help,status,ap,setup-password,time,display,settings,ui,book,"
+            "void,unlock-writes,backup,factory-reset,reboot");
     }
 
     void cmd_status() {
@@ -467,6 +468,34 @@ class SerialConsole {
             return;
         }
         reply_error("display-usage", "display [test|info|rotation <deg>|brightness <0..100>]");
+    }
+
+    // Booking-page ordering: read it, or set it with the write unlock. There is
+    // no other headless way to change an app setting when the admin UI is not
+    // reachable (no AP/STA), and it is the setting most worth verifying on HIL.
+    void cmd_settings(const std::vector<std::string>& tokens) {
+        if (tokens.size() == 3 && tokens[1] == "user-sort") {
+            if (!writes_allowed()) {
+                return reply_error("writes-disabled",
+                                   "run 'unlock-writes <admin_password>' first (HIL only)");
+            }
+            const UserSortOrder order = user_sort_from_string(tokens[2], UserSortOrder::Usage);
+            if (tokens[2] != "creation" && tokens[2] != "usage") {
+                return reply_error("settings-usage", "settings user-sort <creation|usage>");
+            }
+            Settings settings = service_.settings();
+            settings.app.user_sort = order;
+            auto saved = service_.save_settings(settings, new_request_id());
+            if (!saved) return reply_error(saved.error->code, saved.error->message);
+            reply("OK settings user-sort %s", user_sort_to_string(order));
+            return;
+        }
+        if (tokens.size() == 2 && tokens[1] == "user-sort") {
+            reply("OK settings user-sort=%s",
+                  user_sort_to_string(service_.app_settings().user_sort));
+            return;
+        }
+        reply_error("settings-usage", "settings user-sort [<creation|usage>]");
     }
 
     void cmd_display_info() {

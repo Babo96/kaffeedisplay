@@ -55,10 +55,11 @@ MemberOrder UiAppImpl::ordered_members() const {
     }
     if (backend_.app_settings().user_sort != UserSortOrder::Usage) return order;
 
-    // "This month" is meaningless without a trusted clock, and an unsynced
-    // device must not shuffle the grid: keep the join order in that case.
+    // The month only needs a plausible wall clock; `trusted` tracks NTP quality
+    // and must not disable ordering, because a browser-synced kiosk reports
+    // time_trusted=0. An unset clock (0) keeps the join order.
     const TimeInfo time = backend_.time_info();
-    if (time.now <= 0 || !time.trusted) return order;
+    if (time.now <= 0) return order;
 
     Timestamp from = 0;
     Timestamp to = 0;

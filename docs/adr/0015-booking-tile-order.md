@@ -17,8 +17,10 @@ nothing about balances, the journal or the backup schema changes.
 ## Decision
 
 - **One new persisted setting** in `AppSettings`: `user_sort` with the values
-  `creation` (default, today's join order) and `usage` (most bookings in the
-  current month first). It is part of the settings blob, `GET/PUT /settings`,
+  `usage` and `creation`. `usage` is the default: the owner's requirement is that
+  the members who book most sit first, so a fresh device and a device that never
+  saved settings both come up sorted; `creation` restores the join order and
+  stays one click away in the admin UI. It is part of the settings blob, `GET/PUT /settings`,
   backup export/import, and the admin **Einstellungen** page. Unknown spellings
   are rejected by a live `PUT` and fall back to the stored value when read from
   an older or hand-edited blob.
@@ -31,8 +33,9 @@ nothing about balances, the journal or the backup schema changes.
 - **The period is the current month (Europe/Berlin).** It rewards current habits
   and reuses the existing month-bounds helper. A rolling window can be added as
   another enum value later without touching the wire format.
-- **No trusted clock, no reordering.** With an unsynced clock the month is
-  meaningless, so the grid keeps the join order instead of shuffling.
+- **No clock, no reordering.** The month only needs a plausible wall clock, so a
+  browser-synced kiosk (`time_trusted=0`, `source=browser`) still sorts; only an
+  unset clock (`now == 0`) keeps the join order.
 - **The page-1 catalog fingerprint covers the order.** It iterates the members
   in display order, so a re-order rebuilds page 1 and an unchanged order does
   not — the same trap `avatar_id` hit in ADR 0014.

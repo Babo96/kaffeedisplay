@@ -45,7 +45,7 @@ function SettingsForm({ initial }: { initial: Settings }) {
   const [guestEnabled, setGuestEnabled] = useState(initial.app.guest_enabled);
   // Older firmware replies without the field; fall back to the default order.
   const [userSort, setUserSort] = useState<UserSort>(
-    initial.app.user_sort === "usage" ? "usage" : "creation",
+    initial.app.user_sort === "creation" ? "creation" : "usage",
   );
   const [debtLimit, setDebtLimit] = useState(inputFromCents(initial.app.max_open_debt_cents));
   const [lowBalance, setLowBalance] = useState(inputFromCents(initial.app.low_balance_warning_cents));

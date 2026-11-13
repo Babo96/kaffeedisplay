@@ -33,9 +33,9 @@ struct TimeSettings {
     std::string sntp_server = "pool.ntp.org";
 };
 
-// Order of the member tiles on the device booking page. Creation keeps the
-// join order; Usage puts the members with the most bookings in the current
-// month first, so regulars do not have to scroll.
+// Order of the member tiles on the device booking page. Usage (default) puts
+// the members with the most bookings in the current month first, so regulars do
+// not have to scroll; Creation keeps the join order.
 enum class UserSortOrder {
     Creation,
     Usage,
@@ -51,7 +51,7 @@ struct AppSettings {
     bool guest_enabled = true;
     int max_open_debt_cents = 0;            // 0 = no hard limit
     int low_balance_warning_cents = -1000;  // warn below -10 EUR
-    UserSortOrder user_sort = UserSortOrder::Creation;
+    UserSortOrder user_sort = UserSortOrder::Usage;
 };
 
 struct AdminCredentials {

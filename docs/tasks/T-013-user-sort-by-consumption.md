@@ -24,8 +24,8 @@ default (today's order stays the default).
 ## Scope
 
 1. **Setting.** `AppSettings` gains an explicit sort mode (not a bare bool, so a
-   third order can be added later): `user_sort = creation | usage`, default
-   `creation`. Persisted with the other app settings, validated on import,
+   third order can be added later): `user_sort = usage | creation`, default
+   `usage`. Persisted with the other app settings, validated on import,
    exposed in `GET/PUT /settings` and in `docs/api/openapi.yaml`, shown as a
    select/switch in the admin **Einstellungen** page with German copy, and
    applied on the device without a reboot (the settings change already notifies
@@ -49,10 +49,11 @@ default (today's order stays the default).
 
 ## Acceptance
 
-- `user_sort = usage`: a user with more bookings this month is rendered above a
-  user with fewer, and the order matches page 2's ranking for the same period.
-- `user_sort = creation` (default): byte-identical page 1 to `main`'s current
-  behaviour; existing devices are unaffected after upgrade.
+- `user_sort = usage` (default): a user with more bookings this month is rendered
+  above a user with fewer, and the order matches page 2's ranking for the same
+  period.
+- `user_sort = creation`: byte-identical page 1 to the pre-T-013 behaviour;
+  selectable in the admin UI.
 - Toggling in the admin UI changes the device order without a reboot, and the
   value round-trips through backup/restore and `GET/PUT /settings`.
 - Invalid/unknown values are rejected by the API and fall back to `creation`

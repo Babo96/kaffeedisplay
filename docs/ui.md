@@ -10,10 +10,10 @@ dot to change pages; product taps never trigger navigation.
 - Idle: name tiles with one of 30 distinct static cartoon illustrations (IDs 1–30)
   and an initials-only fallback (ID 0); the name is always shown next to the
   artwork. Optional `Gast · Bar` tile, always the last tile.
-- Ordering: join order by default. With the admin setting
-  **Reihenfolge der Benutzer** set to `Meistgebuchte zuerst`, the member tiles are
-  ordered by their booking count for the current month (most first, ties by
-  name, members without a booking last); guest sales never count. An unsynced
+- Ordering: **by consumption by default** — the member tiles are ordered by
+  their booking count for the current month (most first, ties by name, members
+  without a booking last). The admin setting **Reihenfolge der Benutzer** can
+  switch to `Wie angelegt` (join order). Guest sales never count, and an unset
   clock keeps the join order. See ADR 0015.
 - Sized for 30+ members: the grid stays readable and touchable at that count and
   degrades gracefully beyond it; see `docs/tasks/T-013-page1-layout.md`.

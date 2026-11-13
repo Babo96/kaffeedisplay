@@ -44,6 +44,7 @@ python3 tools/settime.py --epoch 1762819200 --source manual
 | `display info` | `OK display info rotation=<deg> brightness=<pct> active=<pct> idle=<pct> backlight=<0\|1> width=480 height=480 pclk_hz=<hz> hsync_pulse=<n> hsync_back=<n> hsync_front=<n> vsync_pulse=<n> vsync_back=<n> vsync_front=<n>` | Current display settings and RGB timing. |
 | `display rotation <0\|90\|180\|270>` | `OK display rotation <deg>` | Change and persist the display rotation. |
 | `display brightness <0..100>` | `OK display brightness <pct>` | Persist 5–100%; 0–4 is a temporary diagnostic level (0 = backlight off). |
+| `settings user-sort [<creation\|usage>]` | `OK settings user-sort=<value>` / `OK settings user-sort <value>` | Read or set the booking-page member order. Writing needs the write unlock; the default is `usage` (most bookings this month first). |
 | `ui page` | `OK ui page <0\|1\|2>` | Current LVGL page (read-only). |
 | `ui tap <x> <y>` | `OK ui tap x=<x> y=<y>` | Test/HIL-only: inject a synthetic press/release at raw panel coordinates through the real LVGL indev/hit-test path. Requires the write unlock. |
 | `ui swipe <x1> <y1> <x2> <y2>` | `OK ui swipe x1=<x1> y1=<y1> x2=<x2> y2=<y2>` | Test/HIL-only: inject a press-drag-release gesture through the real LVGL indev. Requires the write unlock. |

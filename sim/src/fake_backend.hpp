@@ -97,7 +97,8 @@ class FakeBackend final : public kaffee::IUiBackend {
 
     bool time_trusted_ = true;
     bool guest_enabled_ = true;
-    bool usage_order_ = false;
+    // Mirrors AppSettings::user_sort, whose default is Usage.
+    bool usage_order_ = true;
     int request_counter_ = 0;
 };
 

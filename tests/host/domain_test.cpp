@@ -299,15 +299,17 @@ TEST_CASE("user sort setting round trips and rejects unknown spellings") {
     auto broken = j;
     broken["app"]["user_sort"] = "alphabetical";
     Settings base;
-    CHECK(settings_from_json(broken, base).app.user_sort == UserSortOrder::Creation);
+    CHECK(base.app.user_sort == UserSortOrder::Usage);
+    CHECK(settings_from_json(broken, base).app.user_sort == UserSortOrder::Usage);
 
-    // A blob without the key keeps whatever the caller passed in.
+    // A blob without the key keeps whatever the caller passed in (the default
+    // for a fresh device is "usage", see AppSettings).
     auto legacy = j;
     legacy["app"].erase("user_sort");
-    CHECK(settings_from_json(legacy, base).app.user_sort == UserSortOrder::Creation);
-    Settings usage_base;
-    usage_base.app.user_sort = UserSortOrder::Usage;
-    CHECK(settings_from_json(legacy, usage_base).app.user_sort == UserSortOrder::Usage);
+    CHECK(settings_from_json(legacy, base).app.user_sort == UserSortOrder::Usage);
+    Settings creation_base;
+    creation_base.app.user_sort = UserSortOrder::Creation;
+    CHECK(settings_from_json(legacy, creation_base).app.user_sort == UserSortOrder::Creation);
 }
 
 TEST_CASE("avatar choices persist through user events and leave balances unchanged") {

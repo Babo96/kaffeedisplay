@@ -24,7 +24,7 @@ struct Options {
     std::string state = "idle";
     int users = 0;
     int scroll = 0;
-    std::string order = "creation";
+    std::string order = "usage";
     bool click_test = false;
     bool help = false;
 };
@@ -45,7 +45,8 @@ void print_usage(const char* argv0) {
         "          [--click-test]\n\n"
         "  --users N   grow the seeded fund to N active members (N >= 5)\n"
         "  --scroll PX scroll the page-1 member list down by PX before capturing\n"
-        "  --order     member order; `usage` = most bookings this month first\n\n"
+        "  --order     member order; `usage` (default) = most bookings this\n"
+        "              month first, `creation` = join order\n\n"
         "Mouse = touch. Keys: 1/2/3 pages, r rotation, +/- brightness, q quit.\n",
         argv0);
 }

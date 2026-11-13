@@ -966,12 +966,12 @@ components:
             user_sort:
               type: string
               enum: [creation, usage]
-              default: creation
+              default: usage
               description: >-
-                Order of the member tiles on the device booking page. `creation`
-                keeps the join order; `usage` puts the members with the most
-                bookings in the current month first. Omitted keeps the stored
-                value; unknown values are rejected.
+                Order of the member tiles on the device booking page. `usage`
+                (default) puts the members with the most bookings in the current
+                month first; `creation` keeps the join order. Omitted keeps the
+                stored value; unknown values are rejected.
     TimeInfo:
       type: object
       properties:
