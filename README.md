@@ -78,7 +78,7 @@ and saved selections survive restarts and backups.
 
 | Neuen Benutzer anlegen: Zufällig vergeben | Neuer Benutzer: Avatar automatisch gesetzt |
 |---|---|
-| ![Default random avatar assignment in the create-user form](docs/ui/screenshots/web-avatar-picker.png) | ![New member receives a random preset](docs/ui/screenshots/web-user-random-avatar.png) |
+| ![Default random avatar assignment in the create-user form](docs/ui/screenshots/web/web-avatar-picker.png) | ![New member receives a random preset](docs/ui/screenshots/web/web-user-random-avatar.png) |
 Existing users require no migration.
 
 **Preview:** The booking and selected-user screenshots above are generated from
