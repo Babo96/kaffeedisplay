@@ -5,6 +5,7 @@ set(UI_SOURCES
     "src/page_system.cpp"
     "src/theme.cpp"
     "src/format.cpp"
+    "src/member_order.cpp"
     "src/fonts/kaffee_font_14.c"
     "src/fonts/kaffee_font_18.c"
     "src/fonts/kaffee_font_22.c"
