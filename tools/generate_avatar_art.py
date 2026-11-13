@@ -14,6 +14,10 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 PACK_DIR = ROOT / "assets" / "avatar_pack"
 W, COUNT, COLORS = 20, 30, 16
 SIZE = 38
+# The I4 format has no alpha, so each motif is baked onto an opaque plate. The
+# plate must be the surface the avatar sits on (theme COLOR_SURFACE, 0x241B18):
+# anything darker reads as a hole cut into the card on the 480x480 panel.
+PLATE_RGB = (0x24, 0x1B, 0x18)
 # LVGL I4 stores 16 palette entries in ARGB8888 (4 bytes each), then two
 # 4-bit pixel indices per byte, most-significant nibble first.
 STRIDE = (SIZE + 1) // 2
@@ -63,6 +67,9 @@ def art_from_pack():
              (c & 31) * 255 // 31)
             for c in source_palette
         ]
+        # Retint the plate entry (the corner pixel's colour) to the card surface
+        # so the drawn avatar blends into the circle behind it.
+        colors[indices[0]] = PLATE_RGB
         image = bytearray()
         for red, green, blue in colors:
             image.extend((blue, green, red, 255))

@@ -111,15 +111,31 @@ std::string make_id(IPlatform& platform, std::string_view prefix) {
     return std::string(prefix) + "_" + buffer;
 }
 
-// Pick a preset uniformly from 1..30, skipping the last created user's preset
-// when possible. Use the platform RNG; only the chosen ID enters the journal.
+// Pick a preset uniformly from 1..30, preferring presets no active user has.
+// Distinct motifs are the point of the feature: assigning a second raccoon to a
+// four-user fund defeats it. When every preset is taken, fall back to any of
+// them. Only the chosen ID enters the journal, so replays stay deterministic.
 int random_user_avatar(IPlatform& platform, const std::vector<User>& users) {
-    const int previous = users.empty() ? 0 : users.back().avatar_id;
-    const bool skip_previous = previous >= 1 && previous <= kMaxUserAvatarId;
-    const int available = skip_previous ? kMaxUserAvatarId - 1 : kMaxUserAvatarId;
-    int selected = static_cast<int>(platform.random_u64() % available) + 1;
-    if (skip_previous && selected >= previous) ++selected;
-    return selected;
+    bool taken[kMaxUserAvatarId + 1] = {};
+    int used = 0;
+    for (const User& user : users) {
+        if (!user.active) continue;
+        if (user.avatar_id < 1 || user.avatar_id > kMaxUserAvatarId) continue;
+        if (taken[user.avatar_id]) continue;
+        taken[user.avatar_id] = true;
+        ++used;
+    }
+    if (used >= kMaxUserAvatarId) {
+        return static_cast<int>(platform.random_u64() % kMaxUserAvatarId) + 1;
+    }
+    const int available = kMaxUserAvatarId - used;
+    int pick = static_cast<int>(platform.random_u64() % static_cast<uint64_t>(available));
+    for (int id = 1; id <= kMaxUserAvatarId; ++id) {
+        if (taken[id]) continue;
+        if (pick == 0) return id;
+        --pick;
+    }
+    return 1;
 }
 
 std::string random_hex(IPlatform& platform, size_t bytes) {

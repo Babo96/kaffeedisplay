@@ -11,7 +11,7 @@ Money is `int64_t` cents. Timestamps are Unix seconds UTC. The UI renders in
 id, name, color, avatar_id, active, created_at, archived_at
 ```
 
-`avatar_id` is 0 for initials-only, or 1–30 for fixed firmware presets. New users automatically receive a random 1–30 preset when `avatar_id` is omitted (avoiding the last newly created user's preset); an explicit 0 keeps initials-only. The assigned ID is stored in user change events and included in backups. Missing legacy values default to 0.
+`avatar_id` is 0 for initials-only, or 1–30 for fixed firmware presets. New users automatically receive a random 1–30 preset when `avatar_id` is omitted (preferring presets no active user has); an explicit 0 keeps initials-only. The assigned ID is stored in user change events and included in backups. Missing legacy values default to 0.
 
 Balances are derived from events. Archived users keep their history and debt.
 

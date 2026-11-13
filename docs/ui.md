@@ -7,7 +7,7 @@ dot to change pages; product taps never trigger navigation.
 
 ### Page 1 — Buchen
 
-- Idle: large name tiles with one of 30 distinct static cartoon illustrations (IDs 1–30), a small initials badge, and initials-only fallback (ID 0). Optional `Gast · Bar` tile.
+- Idle: large name tiles with one of 30 distinct static cartoon illustrations (IDs 1–30) and an initials-only fallback (ID 0); the name is always shown next to the artwork. Optional `Gast · Bar` tile.
 - Empty state: `Keine Benutzer – Admin: Seite 3 → WLAN starten`.
 - Selected: name + `Wechseln`, saldo (green credit / red `Offen`), product tiles
   with icon, name and price.

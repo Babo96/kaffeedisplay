@@ -456,11 +456,17 @@ function stopAp() {
   notify("ap stopped");
 }
 
+// Mirrors the firmware: prefer presets no active user has, so a small fund does
+// not end up with two identical motifs, and fall back to any preset when all 30
+// are taken.
 function randomUserAvatar() {
-  const previous = users.at(-1)?.avatar_id ?? 0;
-  const available = previous >= 1 && previous <= 30 ? 29 : 30;
-  const chosen = 1 + Math.floor(Math.random() * available);
-  return available === 29 && chosen >= previous ? chosen + 1 : chosen;
+  const taken = new Set(
+    users.filter((u) => u.active && u.avatar_id >= 1 && u.avatar_id <= 30).map((u) => u.avatar_id),
+  );
+  const free = [];
+  for (let id = 1; id <= 30; id += 1) if (!taken.has(id)) free.push(id);
+  if (free.length === 0) return 1 + Math.floor(Math.random() * 30);
+  return free[Math.floor(Math.random() * free.length)];
 }
 
 function addUser(body) {

@@ -14,7 +14,7 @@ namespace {
 
 // Each preset is a distinct 38x38 I4 indexed illustration with an ARGB8888
 // palette, held in flash and drawn at runtime; no decoder or upload is involved.
-// Only the selected user's initials are composed as a label at runtime.
+// Users without a preset fall back to coloured initials.
 lv_obj_t* make_avatar(lv_obj_t* parent, const std::string& name, const std::string& color, int size,
                       int avatar_id = 0) {
     const lv_image_dsc_t* artwork = avatar_art(avatar_id);
@@ -24,26 +24,16 @@ lv_obj_t* make_avatar(lv_obj_t* parent, const std::string& name, const std::stri
     lv_obj_t* circle = theme::make_circle(parent, size, fill);
 
     if (preset) {
+        // The I4 plate is baked to the card surface colour, so the disc blends
+        // into the circle and only the motif is visible. The name is always
+        // shown next to the avatar, so no initials badge is drawn on top: at
+        // 42-46 px it read as a notch cut out of the artwork.
         lv_obj_set_style_clip_corner(circle, true, 0);
         lv_obj_t* image = lv_image_create(circle);
         lv_image_set_src(image, artwork);
         lv_obj_center(image);
         lv_obj_set_clickable(image, false);
         lv_obj_set_scrollable(image, false);
-
-        lv_obj_t* badge = lv_obj_create(circle);
-        lv_obj_set_size(badge, 24, 18);
-        lv_obj_set_style_pad_all(badge, 0, 0);
-        lv_obj_set_style_bg_color(badge, theme::color(theme::COLOR_BG), 0);
-        lv_obj_set_style_bg_opa(badge, LV_OPA_COVER, 0);
-        lv_obj_set_style_border_width(badge, 0, 0);
-        lv_obj_set_style_radius(badge, 6, 0);
-        lv_obj_set_scrollable(badge, false);
-        lv_obj_set_clickable(badge, false);
-        lv_obj_t* initials_label = theme::make_label(
-            badge, initials(name).c_str(), theme::font_small(), theme::color(theme::COLOR_TEXT));
-        lv_obj_center(initials_label);
-        lv_obj_align(badge, LV_ALIGN_BOTTOM_RIGHT, 0, 0);
     } else {
         lv_obj_t* text = theme::make_label(circle, initials(name).c_str(), theme::font_body_bold(),
                                            theme::color(theme::COLOR_BG));
@@ -113,8 +103,11 @@ void UiAppImpl::refresh_book_page() {
         lv_obj_set_flex_grow(names, 1);
         lv_obj_set_flex_align(names, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START,
                               LV_FLEX_ALIGN_CENTER);
-        theme::make_label(names, guest_mode_ ? strings::BOOK_GUEST : user->name.c_str(),
-                          theme::font_title(), theme::color(theme::COLOR_TEXT));
+        lv_obj_t* card_name =
+            theme::make_label(names, guest_mode_ ? strings::BOOK_GUEST : user->name.c_str(),
+                              theme::font_title(), theme::color(theme::COLOR_TEXT));
+        // Names may be up to 40 characters; the avatar takes 56 px of the row.
+        theme::set_ellipsis(card_name);
         if (guest_mode_) {
             theme::make_label(names, strings::BOOK_GUEST_HINT, theme::font_small(),
                               theme::color(theme::COLOR_MUTED));

@@ -59,12 +59,13 @@ flash, with a 16-colour palette and matching locally bundled web imagery.
 Each avatar needs only 786 bytes of artwork data instead of 2,888 bytes
 in RGB565 (23,580 versus 86,640 bytes for the full set before linkage).
 LVGL's built-in indexed image decoder renders them; no image uploads,
-network downloads, animation or custom decompressor is involved. The device adds readable
-initials as a small badge, and preset `0` retains the original initials-only
-display. In the compact web picker the artwork is unobscured.
+network downloads, animation or custom decompressor is involved. The device
+shows the user's name next to the artwork, and preset `0` keeps the original
+initials-only display. In the compact web picker the artwork is unobscured.
 
 **New users automatically receive a random preset (1–30)** on creation.
-The server avoids giving two consecutively created users the same preset.
+The server prefers presets that no active user has yet, so a small fund does not
+end up with duplicate motifs.
 This also works when users are created through the admin API, not just the web
 form. The avatar stays fixed after creation; it does not change on each login
 or restart. No additional action from the administrator is needed.

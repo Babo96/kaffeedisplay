@@ -477,6 +477,71 @@ TEST_CASE("new users receive random avatars unless the admin explicitly chooses 
     CHECK(fixture.service->find_user(manual.value->user_id)->avatar_id == 24);
 }
 
+TEST_CASE("creating a user with avatar_id -1 picks a random preset") {
+    ServiceFixture fixture;
+    const auto created = fixture.service->create_user("Eva", "#D4A373", "avatar-random", -1);
+    REQUIRE(static_cast<bool>(created));
+    auto eva = fixture.service->find_user(created.value->user_id);
+    REQUIRE(eva.has_value());
+    CHECK(eva->avatar_id >= 1);
+    CHECK(eva->avatar_id <= kMaxUserAvatarId);
+}
+
+TEST_CASE("updating a user without avatar_id keeps the preset, archived included") {
+    ServiceFixture fixture;
+    const auto created = fixture.service->create_user("Ben", "#D4A373", "avatar-keep-1", 24);
+    REQUIRE(static_cast<bool>(created));
+    const std::string id = created.value->user_id;
+
+    // -1 mirrors an omitted or null avatar_id from PATCH.
+    auto renamed = fixture.service->update_user(id, "Benny", "#D4A373", true, "avatar-keep-2", -1);
+    REQUIRE(static_cast<bool>(renamed));
+    CHECK(fixture.service->find_user(id)->avatar_id == 24);
+    CHECK(fixture.service->find_user(id)->name == "Benny");
+
+    REQUIRE(static_cast<bool>(fixture.service->archive_user(id, "avatar-keep-3")));
+    CHECK(fixture.service->find_user(id)->avatar_id == 24);
+
+    auto archived_edit =
+        fixture.service->update_user(id, "Benny", "#D4A373", false, "avatar-keep-4", -1);
+    REQUIRE(static_cast<bool>(archived_edit));
+    CHECK(fixture.service->find_user(id)->avatar_id == 24);
+    CHECK_FALSE(fixture.service->find_user(id)->active);
+}
+
+TEST_CASE("updating a user with avatar_id 0 clears the preset") {
+    ServiceFixture fixture;
+    const auto created = fixture.service->create_user("Clara", "#D4A373", "avatar-clear-1", 12);
+    REQUIRE(static_cast<bool>(created));
+    const std::string id = created.value->user_id;
+    REQUIRE(fixture.service->find_user(id)->avatar_id == 12);
+
+    auto cleared = fixture.service->update_user(id, "Clara", "#D4A373", true, "avatar-clear-2", 0);
+    REQUIRE(static_cast<bool>(cleared));
+    CHECK(fixture.service->find_user(id)->avatar_id == 0);
+}
+
+TEST_CASE("out-of-range avatar ids are rejected without touching the user") {
+    ServiceFixture fixture;
+    const auto created = fixture.service->create_user("David", "#D4A373", "avatar-reject-1", 7);
+    REQUIRE(static_cast<bool>(created));
+    const std::string id = created.value->user_id;
+    const size_t events_before = fixture.service->events().size();
+
+    auto rejected = fixture.service->update_user(id, "David", "#D4A373", true, "avatar-reject-2",
+                                                 kMaxUserAvatarId + 1);
+    REQUIRE_FALSE(static_cast<bool>(rejected));
+    CHECK(rejected.error->code == "avatar");
+    CHECK(fixture.service->find_user(id)->avatar_id == 7);
+    CHECK(fixture.service->events().size() == events_before);
+
+    auto bad_create =
+        fixture.service->create_user("Eve", "#D4A373", "avatar-reject-3", kMaxUserAvatarId + 1);
+    REQUIRE_FALSE(static_cast<bool>(bad_create));
+    CHECK(bad_create.error->code == "avatar");
+    CHECK(fixture.service->users().size() == 1);
+}
+
 TEST_CASE("mutations are idempotent across validation and state checks") {
     ServiceFixture fixture(true);
     const std::string user_id = fixture.user("Ada", "req-user");

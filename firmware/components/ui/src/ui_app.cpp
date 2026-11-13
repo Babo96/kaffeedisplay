@@ -350,6 +350,9 @@ uint64_t UiAppImpl::book_catalog_fingerprint() const {
         mix_text(user.id);
         mix_text(user.name);
         mix_text(user.color);
+        // The avatar is part of the visible card: an admin fixing a wrong motif
+        // must reach the panel without waiting for another user/product change.
+        mix(static_cast<uint64_t>(user.avatar_id));
     }
     for (const Product& product : backend_.products()) {
         if (!product.active) continue;
