@@ -906,6 +906,12 @@ DisplayInfo EspDisplay::info() const {
     result.rotation = rotation_.load();
     result.brightness_percent = current_percent_.load();
     result.backlight_on = result.brightness_percent > 0;
+    result.ui_fps = static_cast<float>(ui_fps_milli_.load()) / 1000.0f;
+    // 1 / (h_total * v_total / pclk) for the configured RGB timings.
+    const int h_total = kWidth + kLcdHsyncPulse + kLcdHsyncBackPorch + kLcdHsyncFrontPorch;
+    const int v_total = kHeight + kLcdVsyncPulse + kLcdVsyncBackPorch + kLcdVsyncFrontPorch;
+    const double frame_s = static_cast<double>(h_total) * v_total / kLcdPclkHz;
+    result.panel_hz = frame_s > 0 ? static_cast<float>(1.0 / frame_s) : 0.0f;
     return result;
 }
 
@@ -1084,6 +1090,9 @@ Result<Unit> EspDisplay::init_lvgl() {
     // port's implicit indev timer is not serviced reliably. Poll the real indev
     // from an explicit timer so touch and injected gestures keep working.
     indev_timer_ = lv_timer_create(&EspDisplay::indev_poll_cb, 30, this);
+    // Measure the UI frame rate: LVGL reports FLUSH_FINISH once per flushed
+    // frame, i.e. exactly what a user perceives as the update rate.
+    lv_display_add_event_cb(lv_display_, &EspDisplay::flush_finish_cb, LV_EVENT_FLUSH_FINISH, this);
 
     apply_rotation_locked(0);
     rotation_.store(0);
@@ -1183,6 +1192,25 @@ Result<Unit> EspDisplay::show_test_pattern() {
     unlock();
     ESP_LOGI(kTag, "display test pattern shown for 15 s (rotation %d)", rotation_.load());
     return Result<Unit>::ok(Unit{});
+}
+
+void EspDisplay::flush_finish_cb(lv_event_t* event) {
+    auto* self = static_cast<EspDisplay*>(lv_event_get_user_data(event));
+    if (self == nullptr) return;
+    const int64_t now = esp_timer_get_time();
+    if (self->flush_window_start_us_ == 0) {
+        self->flush_window_start_us_ = now;
+        self->flush_window_count_ = 1;
+        return;
+    }
+    ++self->flush_window_count_;
+    const int64_t elapsed = now - self->flush_window_start_us_;
+    if (elapsed >= 1000000) {
+        self->ui_fps_milli_.store(static_cast<uint32_t>(
+            (static_cast<int64_t>(self->flush_window_count_) * 1000000000) / elapsed / 1000));
+        self->flush_window_start_us_ = now;
+        self->flush_window_count_ = 0;
+    }
 }
 
 void EspDisplay::indev_poll_cb(lv_timer_t* timer) {

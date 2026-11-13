@@ -505,12 +505,13 @@ class SerialConsole {
         reply(
             "OK display info rotation=%d brightness=%d active=%d idle=%d backlight=%d "
             "width=%d height=%d pclk_hz=%d hsync_pulse=%d hsync_back=%d hsync_front=%d "
-            "vsync_pulse=%d vsync_back=%d vsync_front=%d",
+            "vsync_pulse=%d vsync_back=%d vsync_front=%d ui_fps=%.1f panel_hz=%.1f",
             info.rotation, info.brightness_percent, settings.brightness_active,
             settings.brightness_idle, info.backlight_on ? 1 : 0, info.width, info.height,
             timing.pclk_hz, timing.hsync_pulse_width, timing.hsync_back_porch,
             timing.hsync_front_porch, timing.vsync_pulse_width, timing.vsync_back_porch,
-            timing.vsync_front_porch);
+            timing.vsync_front_porch, static_cast<double>(info.ui_fps),
+            static_cast<double>(info.panel_hz));
     }
 
     struct UiBookRequest {

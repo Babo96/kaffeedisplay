@@ -14,6 +14,11 @@ struct DisplayInfo {
     int rotation = 0;
     int brightness_percent = 100;
     bool backlight_on = true;
+    // Flush rate of the last completed one-second window: how often the UI
+    // actually produced a frame (0 while idle). Compare against panel_hz.
+    float ui_fps = 0.0f;
+    // Scanout rate implied by the RGB timings and the pixel clock.
+    float panel_hz = 0.0f;
 };
 
 // Display, backlight and board sensors. Implemented by the ESP-IDF board
