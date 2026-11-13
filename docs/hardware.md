@@ -108,9 +108,18 @@ applies the same rotation formula to pointer input).
   and `esp_lvgl_port` `avoid_tearing` with full-screen direct-mode buffers. The
   flush swaps the panel framebuffer at VSYNC and waits for the transfer
   semaphore, so rotation 0 is tear-free during page swipes and animations.
-- Software rotation (90/180/270) uses the port's third rotation buffer and the
-  copy path; rendering works, but only rotation 0 has the VSYNC FB-swap
-  guarantee. Tear-free at rotated modes needs a custom flush/PPA path.
+- **Rotated modes are currently broken, not merely non-tear-free.** With
+  `sw_rotate=true` and `direct_mode=true`, `esp_lvgl_port` 2.9.0 rotates only the
+  flushed invalid area from the framebuffer base pointer, while LVGL renders
+  partial areas straight into the framebuffer in direct mode. The result is
+  correct pixels in the wrong place: shifted/duplicated rows, a wrapped header
+  and stale bands from the previous frame. The port's README states the
+  combination is unsupported ("When using software rotation, you cannot use
+  neither `direct_mode` nor `full_refresh`"), and the panel is square, so
+  LVGL's buffer reshape does not assert and the corruption is silent. See T-011
+  for the investigation and the fix path (hardware rotation via
+  `esp_lcd_panel_swap_xy/mirror` with `sw_rotate=false`, otherwise draw-time
+  matrix rotation or a partial-buffer software path).
 - Because direct full-frame flushes keep the LVGL task busy, the board also
   polls the real indev from an explicit 30 ms LVGL timer (`lv_indev_read()`);
   the port's implicit indev timer alone is not serviced reliably in this mode.
