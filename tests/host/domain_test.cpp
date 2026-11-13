@@ -288,6 +288,28 @@ TEST_CASE("settings json round trip") {
     CHECK(parsed.app.guest_enabled == false);
 }
 
+TEST_CASE("user sort setting round trips and rejects unknown spellings") {
+    Settings s;
+    s.app.user_sort = UserSortOrder::Usage;
+    const auto j = settings_to_json(s, false);
+    CHECK(j["app"]["user_sort"] == "usage");
+    CHECK(settings_from_json(j).app.user_sort == UserSortOrder::Usage);
+
+    // An old or hand-edited blob keeps the base value instead of failing.
+    auto broken = j;
+    broken["app"]["user_sort"] = "alphabetical";
+    Settings base;
+    CHECK(settings_from_json(broken, base).app.user_sort == UserSortOrder::Creation);
+
+    // A blob without the key keeps whatever the caller passed in.
+    auto legacy = j;
+    legacy["app"].erase("user_sort");
+    CHECK(settings_from_json(legacy, base).app.user_sort == UserSortOrder::Creation);
+    Settings usage_base;
+    usage_base.app.user_sort = UserSortOrder::Usage;
+    CHECK(settings_from_json(legacy, usage_base).app.user_sort == UserSortOrder::Usage);
+}
+
 TEST_CASE("avatar choices persist through user events and leave balances unchanged") {
     Fixture f;
     const auto id = f.user("Ada");

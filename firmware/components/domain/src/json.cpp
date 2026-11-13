@@ -233,7 +233,8 @@ nlohmann::json settings_to_json(const Settings& s, bool include_secrets) {
                        {"locale", s.app.locale},
                        {"guest_enabled", s.app.guest_enabled},
                        {"max_open_debt_cents", s.app.max_open_debt_cents},
-                       {"low_balance_warning_cents", s.app.low_balance_warning_cents}}}};
+                       {"low_balance_warning_cents", s.app.low_balance_warning_cents},
+                       {"user_sort", user_sort_to_string(s.app.user_sort)}}}};
     if (include_secrets) {
         j["admin"] = {{"username", s.admin.username},
                       {"password_hash", s.admin.password_hash},
@@ -241,6 +242,16 @@ nlohmann::json settings_to_json(const Settings& s, bool include_secrets) {
                       {"iterations", s.admin.iterations}};
     }
     return j;
+}
+
+const char* user_sort_to_string(UserSortOrder order) {
+    return order == UserSortOrder::Usage ? "usage" : "creation";
+}
+
+UserSortOrder user_sort_from_string(std::string_view value, UserSortOrder fallback) {
+    if (value == "usage") return UserSortOrder::Usage;
+    if (value == "creation") return UserSortOrder::Creation;
+    return fallback;
 }
 
 Settings settings_from_json(const nlohmann::json& j, const Settings& base) {
@@ -271,6 +282,12 @@ Settings settings_from_json(const nlohmann::json& j, const Settings& base) {
         s.app.max_open_debt_cents = a.value("max_open_debt_cents", s.app.max_open_debt_cents);
         s.app.low_balance_warning_cents =
             a.value("low_balance_warning_cents", s.app.low_balance_warning_cents);
+        if (a.contains("user_sort") && a["user_sort"].is_string()) {
+            // Unknown spellings (older/newer firmware, hand-edited backups) keep
+            // the base value instead of failing the whole settings apply.
+            s.app.user_sort = user_sort_from_string(
+                a["user_sort"].get<std::string>(), base.app.user_sort);
+        }
     }
     if (j.contains("admin") && j["admin"].is_object()) {
         const auto& a = j["admin"];

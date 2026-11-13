@@ -32,6 +32,15 @@ class ChangeQueue {
 lv_obj_t* make_user_avatar(lv_obj_t* parent, const std::string& name, const std::string& color,
                            int size, int avatar_id = 0);
 
+// Member tiles in display order. AppSettings::user_sort == Usage orders them by
+// booking count for the current month (most first, ties by name) so regulars
+// stay on the first rows; Creation keeps the join order. `usage` stays empty in
+// Creation mode.
+struct MemberOrder {
+    std::vector<User> users;
+    std::map<std::string, int> usage;
+};
+
 class UiAppImpl final : public UiApp, public UiControl {
   public:
     explicit UiAppImpl(IUiBackend& backend);
@@ -107,6 +116,7 @@ class UiAppImpl final : public UiApp, public UiControl {
 
     std::string next_request_id(const char* prefix);
     uint64_t book_catalog_fingerprint() const;
+    MemberOrder ordered_members() const;
 
     static void housekeeping_cb(lv_timer_t* timer);
     static void test_timeout_cb(lv_timer_t* timer);

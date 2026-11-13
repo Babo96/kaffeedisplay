@@ -918,6 +918,21 @@ esp_err_t handle_settings_put(RequestContext& ctx) {
     Result<json> body = read_json_object(ctx.req, kMaxJsonBody);
     if (!body) return send_service_error(ctx.req, result_error(body));
 
+    // settings_from_json() is lenient so that old or hand-edited backups keep
+    // loading; a live PUT must fail loudly instead of silently keeping the
+    // stored value.
+    if (body.value->contains("app") && (*body.value)["app"].is_object()) {
+        const json& app = (*body.value)["app"];
+        if (app.contains("user_sort") && !app["user_sort"].is_null()) {
+            const std::string order =
+                app["user_sort"].is_string() ? app["user_sort"].get<std::string>() : std::string();
+            if (order != "creation" && order != "usage") {
+                return send_error(ctx.req, 400, "invalid_input",
+                                  "Benutzer-Reihenfolge ist ungültig");
+            }
+        }
+    }
+
     // PUT applies the provided subtrees and keeps omitted values. This matches
     // the all-optional Settings schema; write-only secrets are never cleared by
     // an empty string.

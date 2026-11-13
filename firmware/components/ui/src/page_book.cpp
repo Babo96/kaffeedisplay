@@ -4,6 +4,7 @@
 
 #include "avatar_art_generated.hpp"
 #include "format.hpp"
+#include "member_order.hpp"
 #include "strings.hpp"
 #include "theme.hpp"
 #include "ui_internal.hpp"
@@ -47,6 +48,30 @@ lv_obj_t* make_user_avatar(lv_obj_t* parent, const std::string& name, const std:
     return circle;
 }
 
+MemberOrder UiAppImpl::ordered_members() const {
+    MemberOrder order;
+    for (const User& user : backend_.users()) {
+        if (user.active) order.users.push_back(user);
+    }
+    if (backend_.app_settings().user_sort != UserSortOrder::Usage) return order;
+
+    // "This month" is meaningless without a trusted clock, and an unsynced
+    // device must not shuffle the grid: keep the join order in that case.
+    const TimeInfo time = backend_.time_info();
+    if (time.now <= 0 || !time.trusted) return order;
+
+    Timestamp from = 0;
+    Timestamp to = 0;
+    month_bounds(time.now, 0, &from, &to);
+    if (to <= from) return order;
+    const Leaderboard board = backend_.leaderboard(from, to);
+    for (const LeaderboardEntry& entry : board.entries) {
+        order.usage[entry.user_id] = entry.count;
+    }
+    order.users = order_members(std::move(order.users), order.usage, UserSortOrder::Usage);
+    return order;
+}
+
 void UiAppImpl::build_page_book(lv_obj_t* tile) {
     build_header(tile, strings::BOOK_TITLE, &clock_labels_[0]);
 
@@ -74,10 +99,8 @@ void UiAppImpl::refresh_book_page() {
     last_book_fingerprint_ = book_catalog_fingerprint();
     lv_obj_clean(book_body_);
 
-    std::vector<User> active_users;
-    for (const User& user : backend_.users()) {
-        if (user.active) active_users.push_back(user);
-    }
+    const MemberOrder members = ordered_members();
+    const std::vector<User>& active_users = members.users;
     const bool guest_enabled = backend_.app_settings().guest_enabled;
     if (!guest_enabled) guest_mode_ = false;
 

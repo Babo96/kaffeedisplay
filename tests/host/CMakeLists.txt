@@ -35,6 +35,7 @@ add_executable(kaffee_tests
   api_util_test.cpp
   api_contract_test.cpp
   ui_format_test.cpp
+  member_order_test.cpp
   touch_transform_test.cpp
   storage_boot_test.cpp
   ${DOMAIN_DIR}/src/domain.cpp
@@ -50,6 +51,7 @@ add_executable(kaffee_tests
   ${API_DIR}/src/api_routes.cpp
   ${API_DIR}/src/api_multipart.cpp
   ${UI_DIR}/src/format.cpp
+  ${UI_DIR}/src/member_order.cpp
 )
 
 target_include_directories(kaffee_tests PRIVATE

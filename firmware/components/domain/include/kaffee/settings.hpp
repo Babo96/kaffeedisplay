@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <string>
+#include <string_view>
 
 #include "kaffee/fwd.hpp"
 
@@ -32,12 +33,25 @@ struct TimeSettings {
     std::string sntp_server = "pool.ntp.org";
 };
 
+// Order of the member tiles on the device booking page. Creation keeps the
+// join order; Usage puts the members with the most bookings in the current
+// month first, so regulars do not have to scroll.
+enum class UserSortOrder {
+    Creation,
+    Usage,
+};
+
+// Wire/JSON spelling of UserSortOrder ("creation" | "usage").
+const char* user_sort_to_string(UserSortOrder order);
+UserSortOrder user_sort_from_string(std::string_view value, UserSortOrder fallback);
+
 struct AppSettings {
     std::string currency = "EUR";
     std::string locale = "de-DE";
     bool guest_enabled = true;
     int max_open_debt_cents = 0;            // 0 = no hard limit
     int low_balance_warning_cents = -1000;  // warn below -10 EUR
+    UserSortOrder user_sort = UserSortOrder::Creation;
 };
 
 struct AdminCredentials {

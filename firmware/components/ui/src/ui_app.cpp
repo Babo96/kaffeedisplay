@@ -345,8 +345,9 @@ uint64_t UiAppImpl::book_catalog_fingerprint() const {
     mix_text(selected_user_id_);
     mix(guest_mode_ ? 1 : 0);
     mix(backend_.app_settings().guest_enabled ? 1 : 0);
-    for (const User& user : backend_.users()) {
-        if (!user.active) continue;
+    // Iterate the members in *display* order: when the grid is sorted by usage a
+    // re-order has to rebuild page 1, and an unchanged order must not.
+    for (const User& user : ordered_members().users) {
         mix_text(user.id);
         mix_text(user.name);
         mix_text(user.color);

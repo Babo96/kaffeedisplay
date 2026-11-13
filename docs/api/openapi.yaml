@@ -963,6 +963,15 @@ components:
             guest_enabled: { type: boolean }
             max_open_debt_cents: { type: integer }
             low_balance_warning_cents: { type: integer }
+            user_sort:
+              type: string
+              enum: [creation, usage]
+              default: creation
+              description: >-
+                Order of the member tiles on the device booking page. `creation`
+                keeps the join order; `usage` puts the members with the most
+                bookings in the current month first. Omitted keeps the stored
+                value; unknown values are rejected.
     TimeInfo:
       type: object
       properties:

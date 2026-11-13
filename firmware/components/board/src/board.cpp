@@ -1002,7 +1002,9 @@ Result<Unit> EspDisplay::init_lvgl() {
 
     lvgl_port_cfg_t port_config = {};
     port_config.task_priority = 4;
-    port_config.task_stack = 16384;
+    // A page-1 rebuild allocates every member tile at once: 15 members leave
+    // ~6 KiB of headroom, and the target deployment is 30+ members.
+    port_config.task_stack = 24576;
     port_config.task_affinity = -1;
     port_config.task_max_sleep_ms = 500;
     port_config.task_stack_caps = MALLOC_CAP_INTERNAL | MALLOC_CAP_DEFAULT;
@@ -1017,7 +1019,8 @@ Result<Unit> EspDisplay::init_lvgl() {
     lvgl_port_display_cfg_t display_config = {};
     display_config.panel_handle = panel_;
     // Full-screen buffers are required by the avoid_tearing RGB path; the two
-    // RGB panel frame buffers are handed directly to LVGL.
+    // RGB panel frame buffers are handed directly to LVGL. Hardware rotation
+    // keeps this zero-copy path valid at 0/90/180/270.
     display_config.buffer_size = static_cast<uint32_t>(kWidth) * kHeight;
     display_config.double_buffer = false;
     display_config.hres = kWidth;
@@ -1029,7 +1032,14 @@ Result<Unit> EspDisplay::init_lvgl() {
     display_config.rotation.mirror_y = false;
     display_config.flags.buff_dma = false;
     display_config.flags.buff_spiram = true;
-    display_config.flags.sw_rotate = true;
+    // Rotate in the panel, not in software. esp_lvgl_port 2.9.0 documents
+    // sw_rotate + direct_mode as unsupported: in direct mode LVGL renders only
+    // the invalidated area into the framebuffer, while the port's rotation path
+    // rotates ww x hh from the framebuffer base pointer, i.e. the wrong region.
+    // With sw_rotate off, lv_display_set_rotation() drives
+    // esp_lcd_panel_swap_xy()/mirror() through the port's RESOLUTION_CHANGED
+    // handler and the flush stays zero-copy. See T-011.
+    display_config.flags.sw_rotate = false;
     display_config.flags.swap_bytes = false;
     display_config.flags.full_refresh = false;
     display_config.flags.direct_mode = true;
@@ -1037,8 +1047,8 @@ Result<Unit> EspDisplay::init_lvgl() {
     lvgl_port_display_rgb_cfg_t rgb_config = {};
     rgb_config.flags.bb_mode = false;
     // Swap the two panel FBs at VSYNC and wait for the transfer semaphore in the
-    // flush callback. This is tear-free at rotation 0; sw_rotate uses a third
-    // buffer for 90/180/270 and falls back to the non-swapped copy path.
+    // flush callback. Tear-free and zero-copy at every rotation now that the
+    // panel does the rotating instead of a third software buffer.
     rgb_config.flags.avoid_tearing = true;
 
     lv_display_ = lvgl_port_add_disp_rgb(&display_config, &rgb_config);
