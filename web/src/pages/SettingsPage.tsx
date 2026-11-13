@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { api } from "../api/endpoints";
-import type { DisplaySettings, Settings } from "../api/types";
+import type { DisplaySettings, Settings, UserSort } from "../api/types";
 import { Alert } from "../components/Alert";
 import { MoneyInput } from "../components/MoneyInput";
 import { PageHeader } from "../components/PageHeader";
@@ -43,6 +43,10 @@ function SettingsForm({ initial }: { initial: Settings }) {
   const [sntpEnabled, setSntpEnabled] = useState(initial.time.sntp_enabled);
   const [sntpServer, setSntpServer] = useState(initial.time.sntp_server);
   const [guestEnabled, setGuestEnabled] = useState(initial.app.guest_enabled);
+  // Older firmware replies without the field; fall back to the default order.
+  const [userSort, setUserSort] = useState<UserSort>(
+    initial.app.user_sort === "usage" ? "usage" : "creation",
+  );
   const [debtLimit, setDebtLimit] = useState(inputFromCents(initial.app.max_open_debt_cents));
   const [lowBalance, setLowBalance] = useState(inputFromCents(initial.app.low_balance_warning_cents));
 
@@ -124,6 +128,7 @@ function SettingsForm({ initial }: { initial: Settings }) {
         currency: "EUR",
         locale: "de-DE",
         guest_enabled: guestEnabled,
+        user_sort: userSort,
         max_open_debt_cents: debt.cents,
         low_balance_warning_cents: low.cents,
       },
@@ -366,6 +371,28 @@ function SettingsForm({ initial }: { initial: Settings }) {
             />
             {de.guestEnabled}
           </label>
+
+          <div className="space-y-2">
+            <span className="label">{de.userSortLabel}</span>
+            <div className="flex flex-wrap gap-1.5" role="group" aria-label={de.userSortLabel}>
+              {(["creation", "usage"] as const).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  aria-pressed={userSort === mode}
+                  className={`rounded-xl border px-4 py-2 text-sm ${
+                    userSort === mode
+                      ? "border-amber-400 bg-amber-400 font-semibold text-espresso-950"
+                      : "border-cream-100/10 text-cream-100/80"
+                  }`}
+                  onClick={() => setUserSort(mode)}
+                >
+                  {mode === "creation" ? de.userSortCreation : de.userSortUsage}
+                </button>
+              ))}
+            </div>
+            <p className="muted text-xs">{de.userSortHint}</p>
+          </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="block space-y-1.5">
               <span className="label">{de.maxOpenDebt}</span>

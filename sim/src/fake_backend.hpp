@@ -51,6 +51,15 @@ class FakeBackend final : public kaffee::IUiBackend {
     void refresh() override;
 
     // Simulator controls.
+    //
+    // Screenshot helpers for the T-013 layout study. `set_member_count` grows the
+    // seeded fund to `total` active members with a deterministic spread of
+    // bookings; `set_usage_order` returns the members in consumption order
+    // (most bookings this month first, ties by name), the order the service will
+    // provide once T-013 lands. Both are opt-in so the default frames stay
+    // byte-identical.
+    void set_member_count(int total);
+    void set_usage_order(bool enabled);
     void set_rotation(int degrees);
     void set_brightness(int percent);
     void set_time_trusted(bool trusted);
@@ -88,6 +97,7 @@ class FakeBackend final : public kaffee::IUiBackend {
 
     bool time_trusted_ = true;
     bool guest_enabled_ = true;
+    bool usage_order_ = false;
     int request_counter_ = 0;
 };
 
