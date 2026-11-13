@@ -16,6 +16,7 @@ file as you work; put the PR link under Evidence when done.
 | T-010 | Serial console CLI + live AP validation | tooling | T-009 | serial-cli-agent | done |
 | T-011 | Rotated display rendering (90/180/270) | embedded | T-010 | – | ready |
 | T-012 | Optional user avatars (30 offline illustrations) | ui/web/domain | T-001, T-002, T-003 | 42vibes | done ([#14](https://github.com/Babo96/kaffeedisplay/pull/14)) |
+| T-013 | Order booking-page users by consumption (admin toggle) | ui/web/domain | T-004, T-012 | – | ready |
 
 ## Workflow
 

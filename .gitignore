@@ -38,3 +38,6 @@ __pycache__/
 web/dist/
 firmware/main/generated/
 firmware/components/webassets/generated/
+
+# Scratch space for screenshots/photos; never commit
+/temp/
