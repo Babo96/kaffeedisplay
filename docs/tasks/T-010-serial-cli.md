@@ -223,7 +223,7 @@ framebuffer while LVGL drew into it. Implemented the `esp_lvgl_port` 2.9.0
 
 ## Evidence
 
-- `make test-host`: 141 cases / 27,448 assertions pass (includes 5000×
+- `make test-host`: 140 cases / 27,437 assertions pass (includes 5000×
   `JournalEventStore::info()` / `KaffeeService::stats()` no-leak regressions).
 - `make check`: format, OpenAPI lint, docs links, host/web tests, web build,
   assets and size budgets pass.
