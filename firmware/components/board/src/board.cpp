@@ -1105,10 +1105,12 @@ Result<Unit> EspDisplay::init_lvgl() {
     lv_indev_set_read_cb(lv_indev_, &EspDisplay::touch_read_cb);
     lv_indev_set_user_data(lv_indev_, this);
     lv_indev_set_display(lv_indev_, lv_display_);
-    // Direct/avoid-tearing keeps the LVGL task busy in full-frame flushes; the
-    // port's implicit indev timer is not serviced reliably. Poll the real indev
-    // from an explicit timer so touch and injected gestures keep working.
-    indev_timer_ = lv_timer_create(&EspDisplay::indev_poll_cb, 30, this);
+    // Poll the real indev from an explicit timer (the port's implicit timer is
+    // not serviced reliably here). This period is also the upper bound on the
+    // scroll sample rate, because each poll is what turns a drag into a new
+    // frame: 30 ms capped the UI at ~33 fps, so poll at 12 ms (LVGL's own default
+    // is 30 ms, but the renderer now takes ~3 ms per band).
+    indev_timer_ = lv_timer_create(&EspDisplay::indev_poll_cb, 12, this);
     // Measure the UI frame rate: LVGL reports FLUSH_FINISH once per flushed
     // frame, i.e. exactly what a user perceives as the update rate.
     // Measure the UI frame rate. esp_lvgl_port owns the flush callback and does
