@@ -37,7 +37,7 @@ export function UserAvatar({ name, color, avatarId = 0, size = 32 }: AvatarProps
           {size >= 40 ? (
             <span
               className="absolute bottom-0 right-0 rounded-md bg-espresso-950/95 px-0.5 text-cream-50"
-              style={{ fontSize: Math.max(9, Math.round(size * 0.22)), lineHeight: 1.3 }}
+              style={{ fontSize: Math.max(12, Math.round(size * 0.22)), lineHeight: 1.3 }}
             >
               {initials}
             </span>
