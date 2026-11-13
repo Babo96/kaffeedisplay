@@ -67,6 +67,10 @@ CONFIG_LITTLEFS_OBJ_NAME_LEN=64
 
 # LVGL defaults (components may override)
 CONFIG_LV_COLOR_DEPTH_16=y
+# The software renderer draws every pixel on the CPU. With its hot functions in
+# flash, each pixel loop iteration pays the flash cache; in IRAM the same loops
+# run at SRAM speed. This is the single biggest draw-cost lever on ESP32.
+CONFIG_LV_ATTRIBUTE_FAST_MEM_USE_IRAM=y
 # I4 indexed-image palettes are ARGB8888 even on an RGB565 display.
 CONFIG_LV_DRAW_SW_SUPPORT_ARGB8888=y
 CONFIG_LV_USE_QRCODE=y
