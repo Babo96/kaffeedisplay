@@ -700,8 +700,11 @@ bool start_serial_console(KaffeeService& service, IPlatform& platform, EspDispla
     // Start after the network but before the UI. Reserve the stack in .bss so
     // it is guaranteed internal, contiguous and available after flash-cache
     // operations. The UI control pointer is attached later.
+    // ESP-IDF's xTaskCreateStatic() takes the depth in BYTES (unlike vanilla
+    // FreeRTOS), so the array is sized in bytes and the depth is sizeof().
+    static constexpr size_t kSerialStackBytes = 12288;
     static StaticTask_t task_buffer;
-    static StackType_t task_stack[10240];
+    static StackType_t task_stack[kSerialStackBytes / sizeof(StackType_t)];
     if (xTaskCreateStatic(serial_task, "serial_cli", sizeof(task_stack), &console, 3, task_stack,
                           &task_buffer) == nullptr) {
         ESP_LOGE(kTag, "cannot create serial console task");

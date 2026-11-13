@@ -91,8 +91,9 @@ void UiAppImpl::build_page_system(lv_obj_t* tile) {
 
 void UiAppImpl::refresh_system_page() {
     if (system_body_ == nullptr) return;
+    // The panel stay-awake lock is owned by UiAppImpl::update_headers() so it
+    // also applies while page 3 is not visible.
     NetworkStatus network = backend_.network_status();
-    set_stay_awake(network.ap_active);
     TimeInfo time = backend_.time_info();
     DisplaySettings display = backend_.display_settings();
     const bool must_change = backend_.must_change_admin_password();

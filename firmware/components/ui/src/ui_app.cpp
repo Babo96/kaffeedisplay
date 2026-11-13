@@ -405,6 +405,11 @@ void UiAppImpl::update_headers() {
     for (lv_obj_t* label : clock_labels_) {
         if (label != nullptr) lv_label_set_text(label, clock.c_str());
     }
+    // The admin hotspot must hold the panel awake on every page: it can be
+    // opened from page 3, the API or the serial console while page 0 is
+    // visible. Housekeeping calls this once per second on all pages, so the
+    // lock cannot go stale while page 3 is not being drawn.
+    set_stay_awake(backend_.network_status().ap_active);
 }
 
 void UiAppImpl::set_stay_awake(bool enabled) {
@@ -484,8 +489,9 @@ void UiAppImpl::housekeeping() {
         clear_selection();
     }
 
-    if (last_ap_active_) {
-        // Keep the panel awake while the admin hotspot is open.
+    if (stay_awake_) {
+        // Keep the panel awake while the admin hotspot is open; the lock is
+        // refreshed by update_headers() on every page.
         lv_display_trigger_activity(nullptr);
     }
     if (current_page_ != 0 && now - page_entered_at_ >= kAutoReturnMs) {
