@@ -1,5 +1,7 @@
 #include "fake_backend.hpp"
 
+#include <algorithm>
+#include <map>
 #include <string>
 #include <utility>
 
@@ -66,6 +68,65 @@ void FakeBackend::seed() {
     }
 }
 
+void FakeBackend::set_member_count(int total) {
+    // Five members are seeded above; screenshots at 15/30/60 users add the rest.
+    constexpr int kSeeded = 5;
+    static const char* kNames[] = {
+        "Felix", "Greta", "Hannes", "Ida",   "Jonas", "Katrin", "Lars", "Mia",  "Nico", "Olga",
+        "Paul",  "Rosa",  "Sven",   "Tilda", "Uwe",   "Vera",   "Wim",  "Yara", "Zoe",  "Anton",
+        "Berta", "Cem",   "Dora",   "Emil",  "Frida", "Gustav", "Hedi", "Ines", "Jule", "Klaus"};
+    static const char* kColors[] = {"#D4A373", "#8FBC8F", "#7FA6D9", "#D98F8F",
+                                    "#C9A0DC", "#E0B15C", "#B87333", "#C07A48"};
+    constexpr int kNameCount = static_cast<int>(sizeof(kNames) / sizeof(kNames[0]));
+    constexpr int kColorCount = static_cast<int>(sizeof(kColors) / sizeof(kColors[0]));
+    std::vector<std::string> product_ids;
+    for (const kaffee::Product& product : ledger_.products()) {
+        if (product.active) product_ids.push_back(product.id);
+    }
+    if (product_ids.empty()) return;
+    const int kProducts = static_cast<int>(product_ids.size());
+
+    int have = 0;
+    for (const kaffee::User& user : ledger_.users()) {
+        if (user.active) ++have;
+    }
+    for (int n = have; n < total; ++n) {
+        const int extra = n - kSeeded;
+        const std::string name =
+            extra < kNameCount ? std::string(kNames[extra]) : "Mitglied " + std::to_string(n + 1);
+        const std::string color = kColors[extra % kColorCount];
+        const int avatar_id = 1 + (extra * 7) % 30;
+        auto created = ledger_.create_user(name, color, "seed-user-" + name, now_ - 86400 * 20,
+                                           kaffee::TimeSource::Synced, avatar_id);
+        if (!created.value) continue;
+        const std::string id = created.value->user_id;
+        ledger_.topup(id, 800, "Startguthaben", "seed-topup-" + name, now_ - 86400 * 10,
+                      kaffee::TimeSource::Synced);
+
+        // Deterministic spread of this month's bookings. A few busy members are
+        // deliberately placed so `--order usage` visibly reorders the grid
+        // instead of mirroring the creation order.
+        int bookings = (extra * 7 + 3) % 12;
+        if (extra == 2) {
+            bookings = 21;
+        } else if (extra == 7) {
+            bookings = 17;
+        } else if (extra == 13) {
+            bookings = 14;
+        }
+        for (int i = 0; i < bookings; ++i) {
+            const std::string& product = product_ids[(i + extra) % kProducts];
+            ledger_.purchase(id, product,
+                             "seed-extra-" + std::to_string(extra) + "-" + std::to_string(i),
+                             now_ - 86400 * 2 + extra * 60 + i * 7, kaffee::TimeSource::Synced);
+        }
+    }
+}
+
+void FakeBackend::set_usage_order(bool enabled) {
+    usage_order_ = enabled;
+}
+
 std::string FakeBackend::next_request(const char* prefix) {
     ++request_counter_;
     return std::string("sim-") + prefix + "-" + std::to_string(request_counter_);
@@ -76,7 +137,21 @@ void FakeBackend::notify() {
 }
 
 FakeBackend::UsersReturn FakeBackend::users() const {
-    return ledger_.users();
+    auto list = ledger_.users();
+    if (!usage_order_) return list;
+    // Stand-in for the T-013 service order: members with the most bookings this
+    // month first, ties by name. All seeded bookings fall inside the window.
+    const auto board = ledger_.leaderboard(now_ - 86400 * 10, now_ + 86400);
+    std::map<std::string, int> counts;
+    for (const auto& entry : board.entries) counts[entry.user_id] = entry.count;
+    std::stable_sort(list.begin(), list.end(),
+                     [&counts](const kaffee::User& a, const kaffee::User& b) {
+                         const int ca = counts.count(a.id) != 0 ? counts.at(a.id) : 0;
+                         const int cb = counts.count(b.id) != 0 ? counts.at(b.id) : 0;
+                         if (ca != cb) return ca > cb;
+                         return a.name < b.name;
+                     });
+    return list;
 }
 
 FakeBackend::ProductsReturn FakeBackend::products() const {

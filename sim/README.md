@@ -40,7 +40,17 @@ in its flush callback, mirroring what the board display port will do.
 ./sim/build/kaffeekasse-sim --screenshot out.png --page 1 --state toast
 ./sim/build/kaffeekasse-sim --screenshot out.png --page 3 --state ap
 ./sim/build/kaffeekasse-sim --screenshot out.png --page 1 --rotation 90
+./sim/build/kaffeekasse-sim --screenshot out.png --page 1 --users 30 --scroll 500
+./sim/build/kaffeekasse-sim --screenshot out.png --page 1 --users 30 --order usage
 ```
+
+`--users N` grows the seeded fund to `N` active members (minimum 5, the seeded
+set) with deterministic names, avatars and booking counts. `--scroll PX` scrolls
+the page-1 member list down by `PX` before the capture, and `--order usage`
+returns the members with the most bookings this month first (the order T-013
+adds to the service). Together they render the "30+ members" states without
+inventing a second screenshot pipeline; all three are no-ops by default, so the
+five original captures stay byte-identical.
 
 `--state` creates a deterministic UI state through the same code paths as touch
 input:
