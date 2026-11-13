@@ -119,7 +119,9 @@ class EspDisplay final : public IDisplay {
     static void touch_read_cb(lv_indev_t* indev, lv_indev_data_t* data);
     static void test_touch_timer_cb(lv_timer_t* timer);
     static void indev_poll_cb(lv_timer_t* timer);
-    static void flush_finish_cb(lv_event_t* event);
+    // Wraps esp_lvgl_port's flush callback to count and time produced frames.
+    static void counting_flush_cb(lv_display_t* display, const lv_area_t* area, uint8_t* pixels);
+    void note_flush(int64_t duration_us);
     static void test_hide_timer_cb(lv_timer_t* timer);
 
     void publish_touch(int32_t x, int32_t y, bool pressed);
@@ -152,11 +154,11 @@ class EspDisplay final : public IDisplay {
     lv_display_t* lv_display_ = nullptr;
     lv_indev_t* lv_indev_ = nullptr;
     lv_timer_t* indev_timer_ = nullptr;
-    // UI frame-rate sampling (LVGL task only, plus an atomic published value).
+    // UI frame-rate sampling (LVGL task only, plus atomic published values).
     uint32_t flush_window_count_ = 0;
     int64_t flush_window_start_us_ = 0;
     std::atomic<uint32_t> ui_fps_milli_{0};
-
+    std::atomic<uint32_t> flush_last_us_{0};
     mutable SemaphoreHandle_t state_mutex_ = nullptr;
     SemaphoreHandle_t backlight_mutex_ = nullptr;
     SemaphoreHandle_t activity_mutex_ = nullptr;

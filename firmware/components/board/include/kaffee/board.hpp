@@ -19,6 +19,9 @@ struct DisplayInfo {
     float ui_fps = 0.0f;
     // Scanout rate implied by the RGB timings and the pixel clock.
     float panel_hz = 0.0f;
+    // Duration of the last flush including the VSYNC wait; near the frame time
+    // means the panel is the limit, well above it means drawing is.
+    float flush_ms = 0.0f;
 };
 
 // Display, backlight and board sensors. Implemented by the ESP-IDF board

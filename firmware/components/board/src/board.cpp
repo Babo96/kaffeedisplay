@@ -907,6 +907,7 @@ DisplayInfo EspDisplay::info() const {
     result.brightness_percent = current_percent_.load();
     result.backlight_on = result.brightness_percent > 0;
     result.ui_fps = static_cast<float>(ui_fps_milli_.load()) / 1000.0f;
+    result.flush_ms = static_cast<float>(flush_last_us_.load()) / 1000.0f;
     // 1 / (h_total * v_total / pclk) for the configured RGB timings.
     const int h_total =
         kWidth + board::kLcdHsyncPulse + board::kLcdHsyncBackPorch + board::kLcdHsyncFrontPorch;
@@ -1094,7 +1095,13 @@ Result<Unit> EspDisplay::init_lvgl() {
     indev_timer_ = lv_timer_create(&EspDisplay::indev_poll_cb, 30, this);
     // Measure the UI frame rate: LVGL reports FLUSH_FINISH once per flushed
     // frame, i.e. exactly what a user perceives as the update rate.
-    lv_display_add_event_cb(lv_display_, &EspDisplay::flush_finish_cb, LV_EVENT_FLUSH_FINISH, this);
+    // Measure the UI frame rate. esp_lvgl_port owns the flush callback and does
+    // not deliver LV_EVENT_FLUSH_FINISH on this path, so wrap it: count frames
+    // and time each one. The port waits for VSYNC inside the flush, so the
+    // duration separates a panel-bound from a draw-bound picture.
+    g_flush_self = this;
+    g_port_flush = lv_display_get_flush_cb(lv_display_);
+    lv_display_set_flush_cb(lv_display_, &EspDisplay::counting_flush_cb);
 
     apply_rotation_locked(0);
     rotation_.store(0);
@@ -1196,23 +1203,36 @@ Result<Unit> EspDisplay::show_test_pattern() {
     return Result<Unit>::ok(Unit{});
 }
 
-void EspDisplay::flush_finish_cb(lv_event_t* event) {
-    auto* self = static_cast<EspDisplay*>(lv_event_get_user_data(event));
-    if (self == nullptr) return;
+namespace {
+
+// The flush wrapper is display-wide and the board owns exactly one display.
+EspDisplay* g_flush_self = nullptr;
+lv_display_flush_cb_t g_port_flush = nullptr;
+
+}  // namespace
+
+void EspDisplay::note_flush(int64_t duration_us) {
+    flush_last_us_.store(static_cast<uint32_t>(duration_us));
     const int64_t now = esp_timer_get_time();
-    if (self->flush_window_start_us_ == 0) {
-        self->flush_window_start_us_ = now;
-        self->flush_window_count_ = 1;
+    if (flush_window_start_us_ == 0) {
+        flush_window_start_us_ = now;
+        flush_window_count_ = 1;
         return;
     }
-    ++self->flush_window_count_;
-    const int64_t elapsed = now - self->flush_window_start_us_;
+    ++flush_window_count_;
+    const int64_t elapsed = now - flush_window_start_us_;
     if (elapsed >= 1000000) {
-        self->ui_fps_milli_.store(static_cast<uint32_t>(
-            (static_cast<int64_t>(self->flush_window_count_) * 1000000000) / elapsed / 1000));
-        self->flush_window_start_us_ = now;
-        self->flush_window_count_ = 0;
+        ui_fps_milli_.store(
+            static_cast<uint32_t>((static_cast<int64_t>(flush_window_count_) * 1000000) / elapsed));
+        flush_window_start_us_ = now;
+        flush_window_count_ = 0;
     }
+}
+
+void EspDisplay::counting_flush_cb(lv_display_t* display, const lv_area_t* area, uint8_t* pixels) {
+    const int64_t started = esp_timer_get_time();
+    if (g_port_flush != nullptr) g_port_flush(display, area, pixels);
+    if (g_flush_self != nullptr) g_flush_self->note_flush(esp_timer_get_time() - started);
 }
 
 void EspDisplay::indev_poll_cb(lv_timer_t* timer) {
