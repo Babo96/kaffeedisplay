@@ -1218,8 +1218,9 @@ void EspDisplay::note_flush(int64_t duration_us) {
     ++flush_window_count_;
     const int64_t elapsed = now - flush_window_start_us_;
     if (elapsed >= 1000000) {
-        ui_fps_milli_.store(
-            static_cast<uint32_t>((static_cast<int64_t>(flush_window_count_) * 1000000) / elapsed));
+        // fps * 1000: frames per second over the completed window.
+        ui_fps_milli_.store(static_cast<uint32_t>(
+            (static_cast<int64_t>(flush_window_count_) * 1000000000) / elapsed));
         flush_window_start_us_ = now;
         flush_window_count_ = 0;
     }
