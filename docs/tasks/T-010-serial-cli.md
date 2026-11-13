@@ -241,3 +241,38 @@ framebuffer while LVGL drew into it. Implemented the `esp_lvgl_port` 2.9.0
   source=unset`, AP provisioning up with fresh setup/AP passwords.
 - Live curl/serial transcripts captured in `/tmp/opencode/t010*` during the run
   (secrets redacted; final setup/AP values reported to the owner).
+
+## Review follow-up: stay-awake lock and console stack size
+
+Two defects found while reviewing the LVGL hardening:
+
+1. **AP stay-awake was page 3 only.** Moving the page rebuilds out of the hot
+   path also removed `refresh_system_page()` from the per-tick housekeeping, and
+   `set_stay_awake(network.ap_active)` lived inside it. Opening the hotspot from
+   page 1, the API or the serial console therefore never locked the panel, so it
+   could dim or sleep during provisioning. The simulator click-test caught it
+   (`click-test FAIL: active AP holds the panel awake`). The lock now follows
+   `update_headers()`, which housekeeping runs once per second on every page, and
+   `housekeeping()` gestures with `stay_awake_` instead of the page 3 label state
+   (`last_ap_active_` stays dedicated to the WLAN label rebuild).
+2. **Serial console stack was 4× its size.** `static StackType_t task_stack[10240]`
+   is 40 KiB in `.bss`, and ESP-IDF's `xTaskCreateStatic()` takes the depth in
+   *bytes* (unlike vanilla FreeRTOS), so `sizeof(task_stack)` reserved exactly
+   that: 40 KiB of internal DRAM instead of the intended 12 KiB, in the resource
+   this task is trying to conserve. The array is now sized in bytes.
+
+Hardware validation after erasing NVS, otadata and the LittleFS partition and
+flashing the CI image (`firmware/build/kaffeekasse.bin` @ `0x20000`):
+
+- Boot health: `nvs=1 storage=1 display=1 lvgl=1 service=1 ui=1 network=1 api=1
+  => ok`, `health check passed`, no panic lines.
+- Clean state: `seq=0 users=0 products=0 drinks_today=0 time=0 time_source=unset`,
+  storage 0/9 MiB used, provisioning AP `Kaffeekasse-B834` on 192.168.4.1.
+- Memory: `heap_internal_free=138127 heap_internal_largest=55296`
+  `lvgl_stack_free=8992 httpd_stack_free=15296` after taps/swipes.
+- Injected input on the clean UI: `ui tap` on the page dots walked 0→1→2→1→0 and
+  `ui swipe` walked 0→1→2; no panic, `uptime_s` continuous.
+- Stay-awake: with the AP up the panel stayed at `brightness=100` through 95 s of
+  idle; after `ap stop` it dimmed to `brightness=20` within the same window.
+- Known limitation: injected touches drive the LVGL indev only, so they do not
+  call `note_activity()` and cannot wake a dimmed panel. Real GT911 presses do.
