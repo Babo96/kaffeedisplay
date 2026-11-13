@@ -316,7 +316,10 @@ Result<Unit> EspDisplay::init_panel() {
     // the line late, shifting/wrapping the image horizontally. Six lines of
     // internal-RAM bounce buffer absorb that without visible tearing while
     // leaving enough SRAM for the serial console task.
-    rgb_config.bounce_buffer_size_px = 5 * kWidth;
+    // EXPERIMENT (do not merge as-is): with a bounce buffer IDF copies the whole
+    // framebuffer through it on every flush, which would dominate the frame
+    // time. Set to 0 to measure the cost; the scanout shift may come back.
+    rgb_config.bounce_buffer_size_px = 0;
     rgb_config.flags.fb_in_psram = 1;
 
     static st7701_lcd_init_cmd_t init_cmds[board::st7701::kType9InitCount];
