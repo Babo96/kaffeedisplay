@@ -285,8 +285,8 @@ Settings settings_from_json(const nlohmann::json& j, const Settings& base) {
         if (a.contains("user_sort") && a["user_sort"].is_string()) {
             // Unknown spellings (older/newer firmware, hand-edited backups) keep
             // the base value instead of failing the whole settings apply.
-            s.app.user_sort = user_sort_from_string(
-                a["user_sort"].get<std::string>(), base.app.user_sort);
+            s.app.user_sort =
+                user_sort_from_string(a["user_sort"].get<std::string>(), base.app.user_sort);
         }
     }
     if (j.contains("admin") && j["admin"].is_object()) {
