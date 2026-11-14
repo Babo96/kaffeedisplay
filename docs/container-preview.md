@@ -14,6 +14,19 @@ Then open two **different** local views:
 | http://localhost:6080/vnc.html?autoconnect=1 | Actual 480 × 480 LVGL SDL **device simulator** in a browser via noVNC |
 | http://localhost:5173 | React **admin web UI** with a separate mock server; admin demo password: `kaffee` |
 
+**Coffee standby demo:** Docker starts the LVGL simulator with
+`--standby-demo`. Leave the display untouched for **3 seconds** to see the
+fine-line `Kaffeepause` cup. Its three steam strands rise and **alternate
+between visible and invisible** as their opacities change in staggered cycles.
+Click to dismiss the scene without booking a drink. In this **simulator-only
+demonstration**, the screen-off timeout is disabled so an old Docker session
+cannot display a frozen, still-lit frame. The production ESP32 still uses
+the admin-configured defaults (dim after 60 seconds, backlight off after
+600 seconds) and pauses animations when the screen is off.
+
+To view a static frame immediately, see
+[the real simulator snapshot](ui/screenshots/06-coffee-standby.png).
+
 Click inside the noVNC view to operate the simulated touchscreen. Keys `1`, `2`, `3` switch pages and `q` quits the simulator. Use the web UI to create and edit test users. Web and LVGL simulator use **separate** fake datasets; changes in the browser's mock admin are *not* mirrored on the SDL display.
 
 Changes to the web UI are reflected via Vite's development server. Changes to the C++ LVGL UI require rebuilding the display container:
@@ -36,11 +49,11 @@ The Docker preview starts a 480 × 480 Xvfb display, waits for X11 to be
 ready, then starts x11vnc, websockify and the real LVGL/SDL simulator.
 SDL is forced to use its software renderer to work reliably in containers.
 
-After pulling the latest `feature/user-avatars` branch, rebuild the **image**
+After pulling the latest `feature/animated-coffee-standby` branch, rebuild the **image**
 (not just restart the old container):
 
 ```sh
-git pull origin feature/user-avatars
+git pull origin feature/animated-coffee-standby
 docker compose -f compose.preview.yml down
 docker compose -f compose.preview.yml up --build --force-recreate
 ```

@@ -1,0 +1,10 @@
+# Pinned build-only dependencies for converting the editable standby SVG to LVGL I8.
+CairoSVG==2.9.0
+Pillow==11.3.0
+cairocffi==1.7.1
+cffi==2.0.0
+cssselect2==0.8.0
+defusedxml==0.7.1
+pycparser==2.23
+tinycss2==1.4.0
+webencodings==0.5.1

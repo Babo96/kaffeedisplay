@@ -98,3 +98,23 @@ undo therefore use production domain code. AP/time/device stats are simulated.
 `firmware/components/ui/include/kaffee/ui_display.hpp` is the display port the
 board component can implement later; `ui_control.hpp` is the simulator-only page
 and state control surface.
+
+## Coffee standby preview
+
+The coffee standby feature uses the same administration-controlled idle
+brightness and timeout settings as the ESP32. In the interactive simulator,
+wait approximately 60 seconds without clicking the pointer; three
+steam strokes will rise and fade in/out at different times. Click once to
+dismiss the overlay. Use `--standby-demo` for a **3 second** delay and no
+simulated screen-off timeout, as in the default Docker preview.
+
+For a deterministic screenshot without the wait:
+
+```sh
+./sim/build/kaffeekasse-sim --screenshot /tmp/standby.png --state standby
+```
+
+The `make test-ui` suite checks that the steam actually moves, pauses after
+the screen-off deadline, and that the first wake tap never purchases a drink.
+You can also run the simulator in a browser through Docker using the
+[preview guide](../docs/container-preview.md).

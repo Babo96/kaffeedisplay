@@ -17,6 +17,9 @@ class UiControl {
     virtual int page() const = 0;
     virtual bool test_pattern_active() const = 0;
     virtual bool guest_selected() const = 0;
+    virtual bool standby_active() const = 0;
+    virtual int standby_steam_y() const = 0;
+    virtual int standby_steam_opacity(int index) const = 0;
     virtual void debug_select_user(const std::string& user_id) = 0;
     virtual void debug_book(const std::string& product_id) = 0;
     virtual void debug_deselect() = 0;

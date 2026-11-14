@@ -1,5 +1,6 @@
 set(UI_SOURCES
     "src/ui_app.cpp"
+    "src/standby.cpp"
     "src/page_book.cpp"
     "src/page_stats.cpp"
     "src/page_system.cpp"
@@ -20,3 +21,6 @@ idf_component_register(
     PRIV_INCLUDE_DIRS "src"
     REQUIRES service lvgl board
 )
+
+include("${CMAKE_CURRENT_LIST_DIR}/../../../cmake/standby-cup.cmake")
+kaffee_add_standby_cup_codegen(${COMPONENT_LIB} "${CMAKE_CURRENT_LIST_DIR}/../../..")

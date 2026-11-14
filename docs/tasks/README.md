@@ -17,9 +17,12 @@ file as you work; put the PR link under Evidence when done.
 | T-011 | Rotated display rendering (90/180/270) | embedded | T-010 | – | mitigated (0° enforced; rotated flush open) |
 | T-012 | Optional user avatars (30 offline illustrations) | ui/web/domain | T-001, T-002, T-003 | 42vibes | done ([#14](https://github.com/Babo96/kaffeedisplay/pull/14)) |
 | T-013 | Order booking-page users by consumption (admin toggle) | ui/web/domain | T-004, T-012 | – | done ([#18](https://github.com/Babo96/kaffeedisplay/pull/18)) |
+| T-014 | Animated coffee idle / power-save display | embedded UI | T-003 | 42vibes | in-progress |
 
 Design record for T-013: [T-013-page1-layout.md](T-013-page1-layout.md) (page 1
 for 30+ members — grid geometry, scroll affordance and the numbers behind them).
+
+Standby task record for T-014: [T-014-animated-coffee-standby.md](T-014-animated-coffee-standby.md).
 
 ## Workflow
 

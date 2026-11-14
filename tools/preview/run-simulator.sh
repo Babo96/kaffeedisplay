@@ -48,4 +48,6 @@ done
 
 echo "[preview] Launching LVGL simulator with SDL software rendering."
 echo "[preview] Open http://localhost:6080/vnc.html?autoconnect=1"
-exec ./sim/build/kaffeekasse-sim
+# Show the moving steam promptly in Docker; do not simulate a black
+# hardware backlight after ten minutes. This flag only affects fake data.
+exec ./sim/build/kaffeekasse-sim --standby-demo

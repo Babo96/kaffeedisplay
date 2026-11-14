@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="242" height="175" viewBox="0 0 242 175">
+ <defs>
+  <linearGradient id="porcelain" x1="0" y1="0" x2="1" y2=".15" gradientUnits="objectBoundingBox">
+   <stop offset="0" stop-color="#B59A7D"/><stop offset=".12" stop-color="#F6E8D5"/><stop offset=".38" stop-color="#E1CAB0"/><stop offset=".68" stop-color="#BCA084"/><stop offset="1" stop-color="#87634A"/>
+  </linearGradient>
+  <linearGradient id="cupShade" x1="0" y1="0" x2="0" y2="1">
+   <stop stop-color="#FFF4E1" stop-opacity=".36"/><stop offset=".48" stop-color="#D4BDA3" stop-opacity=".02"/><stop offset="1" stop-color="#6B432D" stop-opacity=".50"/>
+  </linearGradient>
+  <linearGradient id="handle" x1="0" y1="0" x2="1" y2="1">
+   <stop stop-color="#F7E1C3"/><stop offset=".42" stop-color="#CCAC8C"/><stop offset="1" stop-color="#8B664C"/>
+  </linearGradient>
+  <linearGradient id="saucer" x1="0" y1="0" x2="0" y2="1">
+   <stop stop-color="#F5DEB9"/><stop offset=".55" stop-color="#B89570"/><stop offset="1" stop-color="#5A3D2D"/>
+  </linearGradient>
+  <radialGradient id="coffee" cx=".34" cy=".40" r=".8">
+   <stop stop-color="#6D3824"/><stop offset=".6" stop-color="#3E211B"/><stop offset="1" stop-color="#241714"/>
+  </radialGradient>
+  <filter id="shadow" x="-40%" y="-50%" width="180%" height="220%"><feGaussianBlur stdDeviation="4"/></filter>
+ </defs>
+ <rect width="242" height="175" fill="#100D0C"/>
+ <!-- Softly lit ceramic saucer, grounded in the dark screen -->
+ <ellipse cx="120" cy="155" rx="102" ry="9" fill="#060403" opacity=".9" filter="url(#shadow)"/>
+ <ellipse cx="118" cy="151" rx="98" ry="11" fill="url(#saucer)"/>
+ <path d="M21 151 C50 162 182 162 215 151 C191 169 48 169 21 151Z" fill="#89664C" opacity=".85"/>
+ <ellipse cx="118" cy="150" rx="92" ry="6" fill="#2A1D19" stroke="#E8CBA6" stroke-width="1.2"/>
+ <ellipse cx="118" cy="148" rx="67" ry="3.7" fill="#876B55" opacity=".9"/>
+ <!-- Slim hollow porcelain handle behind the body -->
+ <path d="M168 60 C185 51 205 52 217 64 C229 77 228 96 215 108 C202 121 182 116 169 106 L171 94 C184 107 200 110 210 98 C219 88 219 77 211 69 C202 59 186 63 171 72 Z" fill="url(#handle)"/>
+ <path d="M176 59 C193 50 209 54 219 63" fill="none" stroke="#FFF1DA" stroke-width="2.2" stroke-linecap="round" opacity=".65"/>
+ <path d="M191 115 C201 121 214 116 221 111" fill="none" stroke="#67442F" stroke-width="2.8" opacity=".7"/>
+ <!-- Tapered porcelain cup with satin finish and soft highlights -->
+ <path d="M39 49 C41 80 45 111 59 128 C75 146 137 147 154 128 C169 110 172 82 175 49 C149 55 66 56 39 49 Z" fill="url(#porcelain)" stroke="#E7D1B8" stroke-width="1.5"/>
+ <path d="M39 49 C41 80 45 111 59 128 C75 146 137 147 154 128 C169 110 172 82 175 49 C149 55 66 56 39 49 Z" fill="url(#cupShade)"/>
+ <path d="M49 70 C51 98 58 119 70 128" fill="none" stroke="#FFF9E9" stroke-width="5.8" stroke-linecap="round" opacity=".48"/>
+ <path d="M57 77 C59 100 63 113 71 120" fill="none" stroke="#FFFFFF" stroke-width="1.7" stroke-linecap="round" opacity=".55"/>
+ <path d="M149 116 C157 103 161 81 162 70" fill="none" stroke="#604332" stroke-width="3.5" stroke-linecap="round" opacity=".24"/>
+ <!-- Rich espresso crema within a fine polished rim -->
+ <ellipse cx="107" cy="49" rx="68.5" ry="14" fill="#D6B79B"/>
+ <ellipse cx="107" cy="49" rx="62.2" ry="9.2" fill="url(#coffee)"/>
+ <ellipse cx="107" cy="48" rx="61.0" ry="8" fill="none" stroke="#B87949" stroke-width="1.65" opacity=".65"/>
+ <path d="M60 47 C76 42 97 43 112 44" fill="none" stroke="#CF9158" stroke-width="1.45" opacity=".5" stroke-linecap="round"/>
+ <path d="M43 51 C62 62 153 64 171 52" fill="none" stroke="#F9E8CD" stroke-width="2.35" opacity=".90" stroke-linecap="round"/>
+ <path d="M43 46 C67 32 147 31 171 46" fill="none" stroke="#FFF0D8" stroke-width="2.6" opacity=".93" stroke-linecap="round"/>
+ <path d="M83 135 C99 140 129 140 145 135" fill="none" stroke="#FFF1DB" stroke-width="1.45" opacity=".48" stroke-linecap="round"/>
+</svg>

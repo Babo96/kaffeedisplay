@@ -84,7 +84,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y clang-format
+      - run: sudo apt-get update && sudo apt-get install -y clang-format libcairo2 python3-venv
+      - run: make standby-tools
       - run: make fmt-check
       - name: Validate I4 palette layout and matching admin artwork
         run: python3 tools/check_avatar_i4.py
@@ -92,13 +93,15 @@ jobs:
         run: |
           python3 tools/generate_avatar_art.py
           git diff --exit-code -- firmware/components/ui/src/avatar_art_generated.hpp web/src/components/avatarArt.generated.ts
+      - name: Test build-local standby image generation
+        run: make standby-cup-check
 
   simulator:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - name: Install SDL2
-        run: sudo apt-get update && sudo apt-get install -y libsdl2-dev zlib1g-dev
+      - name: Install simulator build dependencies
+        run: sudo apt-get update && sudo apt-get install -y libcairo2 libsdl2-dev python3-venv zlib1g-dev
       - name: Click/hit-test smoke test
         run: make test-ui
       - name: Deterministic screenshots
@@ -148,10 +151,10 @@ jobs:
       - name: Build firmware
         run: |
           docker run --rm \
-            -v "$PWD/firmware:/project" \
-            -w /project \
+            -v "$PWD:/repo" \
+            -w /repo \
             espressif/idf:release-v5.5 \
-            bash -lc '. "$IDF_PATH/export.sh" && idf.py build'
+            bash /repo/tools/build_firmware_container.sh
       - name: Firmware and bundle size budgets
         run: python3 tools/check_sizes.py
       - uses: actions/upload-artifact@v4

@@ -9,12 +9,16 @@ IDF ?= $(shell command -v idf.py 2>/dev/null)
 NPM ?= npm
 CMAKE ?= cmake
 PYTHON ?= python3
+STANDBY_TOOLS_DIR ?= $(CURDIR)/build/standby-tools
+STANDBY_PYTHON ?= $(STANDBY_TOOLS_DIR)/bin/python
+STANDBY_TOOLS_STAMP := $(STANDBY_TOOLS_DIR)/.installed
 SCREENSHOT_DIR ?= docs/ui/screenshots
 SCREENSHOT_CHECK_DIR ?= /tmp/kaffeekasse-screenshots
 
 .PHONY: help bootstrap build build-native build-docker flash flash-docker monitor \
 	test test-host test-web test-e2e e2e hil web web-dev mock sim sim-build \
-	screenshots screenshots-check test-ui fmt fmt-check lint docs assets tools-deps check clean
+	screenshots screenshots-check test-ui fmt fmt-check lint docs assets tools-deps \
+	standby-tools standby-cup-check test-standby-cup check clean
 
 help:
 	@echo "Kaffeekasse targets:"
@@ -43,6 +47,20 @@ bootstrap:
 
 tools-deps:
 	$(PYTHON) -m pip install -r tools/requirements-tools.txt
+
+standby-tools: $(STANDBY_TOOLS_STAMP)
+
+$(STANDBY_TOOLS_STAMP): tools/requirements-standby.txt
+	$(PYTHON) -m venv $(STANDBY_TOOLS_DIR)
+	$(STANDBY_PYTHON) -m pip install --disable-pip-version-check -r $<
+	@touch $@
+
+test-standby-cup: standby-tools
+	$(STANDBY_PYTHON) tools/test_generate_standby_cup.py
+
+standby-cup-check: standby-tools test-standby-cup
+	$(STANDBY_PYTHON) tools/generate_standby_cup.py --output $(CURDIR)/build/standby-cup-check/standby_cup_generated.hpp
+	$(STANDBY_PYTHON) tools/generate_standby_cup.py --check --output $(CURDIR)/build/standby-cup-check/standby_cup_generated.hpp
 
 web/node_modules: web/package-lock.json
 	$(NPM) --prefix web ci
@@ -79,13 +97,13 @@ e2e: test-e2e
 hil:
 	$(PYTHON) tools/hil.py --port $(PORT)
 
-build-native: assets
+build-native: assets standby-tools
 	@if [ -z "$(IDF)" ]; then echo "idf.py not found; use 'make build-docker' or install ESP-IDF 5.5"; exit 1; fi
-	cd firmware && idf.py build
+	cd firmware && STANDBY_PYTHON="$(STANDBY_PYTHON)" idf.py build
 
 build-docker: assets
-	docker run --rm -v "$(CURDIR)/firmware:/project" -w /project $(IDF_IMAGE) \
-		bash -lc '. $$IDF_PATH/export.sh && idf.py build'
+	docker run --rm -v "$(CURDIR):/repo" -w /repo $(IDF_IMAGE) \
+		bash /repo/tools/build_firmware_container.sh
 
 build:
 	@if [ -n "$(IDF)" ]; then $(MAKE) build-native; else $(MAKE) build-docker; fi
@@ -102,8 +120,8 @@ monitor:
 		docker run --rm -it -v "$(CURDIR)/firmware:/project" -w /project --device=$(PORT) \
 			$(IDF_IMAGE) bash -lc '. $$IDF_PATH/export.sh && idf.py -p $(PORT) monitor'; fi
 
-sim-build:
-	$(CMAKE) -S sim -B sim/build -DCMAKE_BUILD_TYPE=Release
+sim-build: standby-tools
+	STANDBY_PYTHON="$(STANDBY_PYTHON)" $(CMAKE) -S sim -B sim/build -DCMAKE_BUILD_TYPE=Release
 	$(CMAKE) --build sim/build -j
 
 sim: sim-build
@@ -118,6 +136,7 @@ screenshots: sim-build
 	./sim/build/kaffeekasse-sim --screenshot $(SCREENSHOT_DIR)/06-page1-15-users.png --page 1 --users 15
 	./sim/build/kaffeekasse-sim --screenshot $(SCREENSHOT_DIR)/07-page1-30-users-page3.png --page 1 --users 30 --book-page 2
 	./sim/build/kaffeekasse-sim --screenshot $(SCREENSHOT_DIR)/08-page1-30-users-usage-order.png --page 1 --users 30 --order usage
+	./sim/build/kaffeekasse-sim --screenshot $(SCREENSHOT_DIR)/06-coffee-standby.png --page 1 --state standby
 
 screenshots-check: sim-build
 	rm -rf $(SCREENSHOT_CHECK_DIR)
@@ -147,8 +166,8 @@ lint:
 docs:
 	$(PYTHON) tools/check_docs.py
 
-check: fmt-check lint docs test web assets
-	@if command -v idf.py >/dev/null; then cd firmware && idf.py build; else echo "Skipping firmware build (idf.py not found; CI builds it in Docker)"; fi
+check: fmt-check lint docs test web assets standby-cup-check
+	@if command -v idf.py >/dev/null; then cd firmware && STANDBY_PYTHON="$(STANDBY_PYTHON)" idf.py build; else echo "Skipping firmware build (idf.py not found; CI builds it in Docker)"; fi
 	@$(PYTHON) tools/check_sizes.py
 
 clean:

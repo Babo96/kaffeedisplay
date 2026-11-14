@@ -56,6 +56,9 @@ class UiAppImpl final : public UiApp, public UiControl {
     int page() const override;
     bool test_pattern_active() const override;
     bool guest_selected() const override;
+    bool standby_active() const override;
+    int standby_steam_y() const override;
+    int standby_steam_opacity(int index) const override;
     void debug_select_user(const std::string& user_id) override;
     void debug_book(const std::string& product_id) override;
     void debug_deselect() override;
@@ -87,6 +90,10 @@ class UiAppImpl final : public UiApp, public UiControl {
     void build_page_system(lv_obj_t* tile);
     void build_page_dots();
     void build_toast();
+    void build_standby();
+    void update_standby();
+    void animate_standby();
+    void hide_standby();
     void build_system_body();
 
     void refresh_book_page();
@@ -120,6 +127,8 @@ class UiAppImpl final : public UiApp, public UiControl {
     MemberOrder ordered_members() const;
 
     static void housekeeping_cb(lv_timer_t* timer);
+    static void standby_anim_cb(lv_timer_t* timer);
+    static void standby_wake_cb(lv_event_t* event);
     static void test_timeout_cb(lv_timer_t* timer);
     static void delete_context_cb(lv_event_t* event);
     static void user_click_cb(lv_event_t* event);
@@ -218,6 +227,13 @@ class UiAppImpl final : public UiApp, public UiControl {
     // Test pattern
     lv_obj_t* test_overlay_ = nullptr;
     lv_timer_t* test_timer_ = nullptr;
+
+    // Full-screen idle illustration and a paused-when-hidden 11 Hz steam timer.
+    lv_obj_t* standby_overlay_ = nullptr;
+    lv_obj_t* steam_[3] = {nullptr, nullptr, nullptr};
+    lv_timer_t* standby_timer_ = nullptr;
+    bool standby_active_ = false;
+    bool standby_animating_ = false;
 
     lv_timer_t* housekeeping_timer_ = nullptr;
 
