@@ -119,6 +119,10 @@ void UiAppImpl::build() {
     lv_obj_set_style_pad_all(tileview_, 0, 0);
     lv_obj_set_scrollbar_mode(tileview_, LV_SCROLLBAR_MODE_OFF);
     lv_obj_add_event_cb(tileview_, &UiAppImpl::tileview_changed_cb, LV_EVENT_VALUE_CHANGED, this);
+    // A swipe still picks the page, but it snaps there instantly: the animated
+    // settle was the last full-screen animation, and the panel cannot draw one
+    // without tearing or a multi-frame redraw.
+    lv_obj_add_event_cb(tileview_, &UiAppImpl::tileview_scroll_end_cb, LV_EVENT_SCROLL_END, this);
 
     for (int i = 0; i < 3; ++i) {
         tiles_[i] = lv_tileview_add_tile(tileview_, static_cast<uint8_t>(i), 0, LV_DIR_HOR);
@@ -438,8 +442,11 @@ void UiAppImpl::update_dots() {
 
 void UiAppImpl::show_page(int index, bool animate) {
     if (tileview_ == nullptr || index < 0 || index > 2) return;
-    lv_tileview_set_tile_by_index(tileview_, static_cast<uint32_t>(index), 0,
-                                  animate ? LV_ANIM_ON : LV_ANIM_OFF);
+    // Pages snap instead of sliding: the panel cannot animate a full-screen move
+    // without visible tearing or a multi-frame redraw, so a page change is a
+    // single static frame. `animate` is kept for the call sites' intent only.
+    (void)animate;
+    lv_tileview_set_tile_by_index(tileview_, static_cast<uint32_t>(index), 0, LV_ANIM_OFF);
     current_page_ = index;
     page_entered_at_ = lv_tick_get();
     if (index == 2) last_system_dynamic_ms_ = 0;
@@ -640,6 +647,19 @@ void UiAppImpl::test_overlay_click_cb(lv_event_t* event) {
 
 void UiAppImpl::delete_context_cb(lv_event_t* event) {
     delete static_cast<IdContext*>(lv_event_get_user_data(event));
+}
+
+void UiAppImpl::tileview_scroll_end_cb(lv_event_t* event) {
+    auto* app = static_cast<UiAppImpl*>(lv_event_get_user_data(event));
+    if (app == nullptr || app->tileview_ == nullptr) return;
+    // Nearest page to where the finger left the content, snapped without
+    // animation.
+    const int scroll_x = lv_obj_get_scroll_x(app->tileview_);
+    constexpr int kPageWidth = 480;
+    int target = (scroll_x + kPageWidth / 2) / kPageWidth;
+    if (target < 0) target = 0;
+    if (target > 2) target = 2;
+    app->show_page(target, false);
 }
 
 void UiAppImpl::tileview_changed_cb(lv_event_t* event) {

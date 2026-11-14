@@ -100,29 +100,16 @@ applies the same rotation formula to pointer input).
 
 ## Rotation / brightness
 
-- **Rotation is fixed at 0 on this panel.** 90/180/270 are rejected by the API,
-  the serial CLI and the admin UI, and clamped at boot. Three routes were
-  investigated and all are dead ends with this stack:
-  - `sw_rotate` + `direct_mode`: `esp_lvgl_port` 2.9.0 documents the pair as
-    unsupported and rotates `ww × hh` from the framebuffer base pointer while
-    LVGL renders partial areas into the framebuffer — the field photos show
-    correct pixels in the wrong place (duplicated rows, wrapped header, stale
-    bands).
-  - `esp_lcd_panel_swap_xy()` on RGB: the rotate mask only feeds the CPU-copy
-    branch of `esp_lcd_rgb_panel_draw_bitmap()`, so it is a no-op once the draw
-    buffer *is* a panel framebuffer (which `avoid_tearing` guarantees).
-  - LVGL matrix rotation: `lv_display_set_matrix_rotation()` is a no-op with the
-    software renderer (only VG-Lite/NanoVG consume the matrix), so it would
-    rotate touch but not pixels.
-  The fix is a rotated flush that renders strips into the back buffer and swaps
-  at VSYNC, which gives up direct-mode zero-copy; tracked in T-011.
-- `sw_rotate` is therefore off, which also drops the third full-screen PSRAM
-  buffer the port would otherwise allocate.
-- The RGB panel uses two 480×480 RGB565 PSRAM scanout framebuffers (`num_fbs=2`)
-  and `esp_lvgl_port` `avoid_tearing` with full-screen direct-mode buffers. The
-  flush swaps the panel framebuffer at VSYNC and waits for the transfer
-  semaphore, so the display is tear-free and zero-copy during page swipes and
-  animations.
+- **Rotation 0/90/180/270 is applied in the framebuffer blit**, not by the panel
+  or by LVGL. The panel has no transpose hardware (`esp_lcd`'s RGB `swap_xy` is a
+  mask consumed only by the CPU-copy branch, and the ST7701 vendor driver never
+  writes MADCTL `MV`), and LVGL's software renderer ignores matrix rotation.
+  Since the board already blits each band from the internal-RAM draw buffer into
+  the panel framebuffer, it rotates the pixels on the way: 0° is a row memcpy,
+  180° reverses, and 90/270 transpose. The mappings are the inverse of
+  `lv_display_rotate_point()`, so touch follows the picture at every angle.
+  Cost: a transpose is slower than a memcpy (measured next), so a page switch at
+  90/270 is heavier than at 0°.
 - Because direct full-frame flushes keep the LVGL task busy, the board also
   polls the real indev from an explicit 30 ms LVGL timer (`lv_indev_read()`);
   the port's implicit indev timer alone is not serviced reliably in this mode.
