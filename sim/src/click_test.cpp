@@ -50,6 +50,26 @@ void click(Harness& h, int x, int y, int hold_frames = 2, int settle_frames = 4)
     advance(h, settle_frames);
 }
 
+// Press, drag horizontally across the middle of the screen and release: this is
+// what a finger swipe on the tileview looks like to LVGL.
+void swipe_left(Harness& h) {
+    for (int x = 400; x >= 80; x -= 40) {
+        h.display.inject_pointer(x, 240, true);
+        advance(h, 2);
+    }
+    h.display.inject_pointer(80, 240, false);
+    advance(h, 8);
+}
+
+void swipe_right(Harness& h) {
+    for (int x = 80; x <= 400; x += 40) {
+        h.display.inject_pointer(x, 240, true);
+        advance(h, 2);
+    }
+    h.display.inject_pointer(400, 240, false);
+    advance(h, 8);
+}
+
 bool expect(bool condition, const char* message) {
     if (!condition) std::printf("click-test FAIL: %s\n", message);
     return condition;
@@ -178,6 +198,16 @@ bool run_click_test(FakeBackend& backend, kaffee::ui::UiApp& app, kaffee::ui::Ui
     click(h, kDot1X, kDotY);
     advance(h, 8);
     ok = expect(control.page() == 0, "first page dot returns to booking") && ok;
+
+    // Swipes switch pages instantly: no drag-follow, no animation.
+    swipe_left(h);
+    ok = expect(control.page() == 1, "swipe left opens the statistics page") && ok;
+    swipe_left(h);
+    ok = expect(control.page() == 2, "swipe left again opens the system page") && ok;
+    swipe_right(h);
+    ok = expect(control.page() == 1, "swipe right returns to the statistics page") && ok;
+    swipe_right(h);
+    ok = expect(control.page() == 0, "swipe right returns to booking") && ok;
 
     // The centre card inside the test pattern is decorative; the full-screen
     // overlay must receive the dismiss click.

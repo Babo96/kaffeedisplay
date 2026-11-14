@@ -73,13 +73,12 @@ Result<bool> get_bool(const json& body, const char* key, bool fallback) {
 }
 
 bool validate_display(const DisplaySettings& display, Error& error) {
-    // Rotated modes render incorrectly with this panel and stack: esp_lvgl_port
-    // 2.9.0 cannot rotate in direct mode, esp_lcd's RGB swap_xy is a no-op on a
-    // panel framebuffer and LVGL's software renderer ignores matrix rotation.
-    // Rejecting the value keeps a device out of a visibly broken state; see
-    // T-011 for the rotated-flush path that would lift this.
-    if (display.rotation != 0) {
-        error = Error{"invalid_input", "Drehung wird von diesem Display nicht unterstützt"};
+    // Rotation is applied while blitting into the framebuffer (see board.cpp),
+    // which is the only place it can work on an RGB panel: the panel has no
+    // transpose hardware and LVGL's software renderer cannot rotate.
+    if (display.rotation != 0 && display.rotation != 90 && display.rotation != 180 &&
+        display.rotation != 270) {
+        error = Error{"invalid_input", "Rotation muss 0, 90, 180 oder 270 sein"};
         return false;
     }
     if (display.brightness_active < 5 || display.brightness_active > 100) {

@@ -949,12 +949,6 @@ DisplaySettings EspDisplay::settings() const {
 
 Result<Unit> EspDisplay::apply_settings(const DisplaySettings& settings) {
     DisplaySettings next = settings;
-    // Only 0 is implemented (see init_lvgl); clamp instead of failing the whole
-    // apply so a device that stored 90 with older firmware still boots usable.
-    if (next.rotation != 0) {
-        ESP_LOGW(kTag, "rotation %d is not supported on this panel; using 0", next.rotation);
-        next.rotation = 0;
-    }
     next.rotation = touch::normalize_rotation(next.rotation);
     next.brightness_active = clamp_int(next.brightness_active, 5, 100);
     next.brightness_idle = clamp_int(next.brightness_idle, 1, 100);
@@ -1147,8 +1141,8 @@ Result<Unit> EspDisplay::init_lvgl() {
     lv_display_add_event_cb(lv_display_, &EspDisplay::render_start_cb, LV_EVENT_RENDER_START, this);
     lv_display_add_event_cb(lv_display_, &EspDisplay::render_ready_cb, LV_EVENT_RENDER_READY, this);
 
-    apply_rotation_locked(0);
-    rotation_.store(0);
+    apply_rotation_locked(settings_.rotation);
+    rotation_.store(settings_.rotation);
     lvgl_port_unlock();
 
     ESP_LOGI(kTag, "LVGL port ready (%dx%d, rotation %d, software rotate)", kWidth, kHeight,
@@ -1305,14 +1299,46 @@ void EspDisplay::tearfree_flush_cb(lv_display_t* display, const lv_area_t* area,
         self->frame_in_progress_ = true;
     }
 
-    // Blit the band from the SRAM draw buffer into the back framebuffer.
+    // Blit the band from the SRAM draw buffer into the back framebuffer,
+    // rotating it on the way: the panel has no transpose hardware and LVGL's
+    // software renderer cannot rotate, but this copy is ours, so rotation costs
+    // a few extra memory accesses per band instead of a broken display.
     auto* dst = static_cast<uint16_t*>(self->panel_fbs_[self->back_fb_]);
     const auto* src = reinterpret_cast<const uint16_t*>(pixels);
     const int width = lv_area_get_width(area);
-    for (int y = area->y1; y <= area->y2; ++y) {
-        std::memcpy(dst + static_cast<size_t>(y) * kWidth + area->x1,
-                    src + static_cast<size_t>(y - area->y1) * width,
-                    static_cast<size_t>(width) * sizeof(uint16_t));
+    const int rotation = self->rotation_.load();
+    if (rotation == 0) {
+        for (int y = area->y1; y <= area->y2; ++y) {
+            std::memcpy(dst + static_cast<size_t>(y) * kWidth + area->x1,
+                        src + static_cast<size_t>(y - area->y1) * width,
+                        static_cast<size_t>(width) * sizeof(uint16_t));
+        }
+    } else {
+        // Mappings are the inverse of lv_display_rotate_point(), so touch and
+        // pixels stay consistent for every angle.
+        for (int sy = area->y1; sy <= area->y2; ++sy) {
+            const uint16_t* row = src + static_cast<size_t>(sy - area->y1) * width;
+            for (int sx = area->x1; sx <= area->x2; ++sx) {
+                const int px = sx - area->x1;
+                int dx = 0;
+                int dy = 0;
+                switch (rotation) {
+                    case 90:
+                        dx = sy;
+                        dy = (kHeight - 1) - sx;
+                        break;
+                    case 180:
+                        dx = (kWidth - 1) - sx;
+                        dy = (kHeight - 1) - sy;
+                        break;
+                    default:  // 270
+                        dx = (kWidth - 1) - sy;
+                        dy = sx;
+                        break;
+                }
+                dst[static_cast<size_t>(dy) * kWidth + dx] = row[px];
+            }
+        }
     }
 
     if (lv_display_flush_is_last(display)) {

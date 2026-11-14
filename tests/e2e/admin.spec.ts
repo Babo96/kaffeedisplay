@@ -212,14 +212,11 @@ test("creates and voids an expense", async ({ page }) => {
 test("applies display settings and starts/stops the AP with QR codes", async ({ page }) => {
   await login(page);
   await page.goto("/settings");
-  // Rotated modes are not implemented on this panel (T-011): only 0° is offered.
-  await expect(page.getByRole("button", { name: "0°", exact: true })).toBeEnabled();
-  for (const angle of ["90°", "180°", "270°"] as const) {
-    await expect(page.getByRole("button", { name: angle, exact: true })).toBeDisabled();
+  // All four orientations are selectable; the device applies them while blitting.
+  for (const angle of ["0°", "90°", "180°", "270°"] as const) {
+    await expect(page.getByRole("button", { name: angle, exact: true })).toBeEnabled();
   }
-  await expect(
-    page.getByText("werden von diesem Display nicht unterstützt", { exact: false }),
-  ).toBeVisible();
+  await page.getByRole("button", { name: "90°", exact: true }).click();
   await page.getByRole("button", { name: "Speichern", exact: true }).click();
   await expect(page.getByText("Anzeige aktualisiert.")).toBeVisible();
 

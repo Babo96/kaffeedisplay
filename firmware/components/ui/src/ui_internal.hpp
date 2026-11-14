@@ -139,6 +139,7 @@ class UiAppImpl final : public UiApp, public UiControl {
     static void time_sync_cb(lv_event_t* event);
     static void test_overlay_click_cb(lv_event_t* event);
     static void tileview_changed_cb(lv_event_t* event);
+    static void tileview_scroll_end_cb(lv_event_t* event);
 
     IUiBackend& backend_;
     ChangeQueue queue_;
