@@ -75,6 +75,8 @@ class EspDisplay final : public IDisplay {
     // Keeps the panel awake while an AP/QR session is active. The UI/net layer
     // should call this with true when the AP starts and false when it stops.
     void set_stay_awake(bool stay_awake);
+    // Releases the frame buffer after a VSYNC; called from the panel ISR.
+    void on_vsync_from_isr();
     // Inject a synthetic press into the real LVGL indev read callback. The next
     // callback returns PRESSED, the following one RELEASED, so LVGL runs its
     // normal hit-test/click path. Coordinates are raw panel coordinates.
@@ -120,7 +122,10 @@ class EspDisplay final : public IDisplay {
     static void test_touch_timer_cb(lv_timer_t* timer);
     static void indev_poll_cb(lv_timer_t* timer);
     // Wraps esp_lvgl_port's flush callback to count and time produced frames.
-    static void counting_flush_cb(lv_display_t* display, const lv_area_t* area, uint8_t* pixels);
+    // Blits each LVGL band from the internal-RAM draw buffer into the back panel
+    // framebuffer and swaps framebuffers at VSYNC, so drawing stays fast (SRAM)
+    // and the panel never shows a half-drawn frame.
+    static void tearfree_flush_cb(lv_display_t* display, const lv_area_t* area, uint8_t* pixels);
     void note_flush(int64_t duration_us);
     static void render_start_cb(lv_event_t* event);
     static void render_ready_cb(lv_event_t* event);
@@ -161,6 +166,11 @@ class EspDisplay final : public IDisplay {
     int64_t flush_window_start_us_ = 0;
     std::atomic<uint32_t> ui_fps_milli_{0};
     std::atomic<uint32_t> flush_last_us_{0};
+    // Double buffering for tearfree_flush_cb: the FB currently being scanned out
+    // and the one we blit into.
+    void* panel_fbs_[2] = {nullptr, nullptr};
+    int back_fb_ = 1;
+    SemaphoreHandle_t vsync_sem_ = nullptr;
     // Duration of the last LVGL render pass (drawing, excluding the flush).
     int64_t render_start_us_ = 0;
     std::atomic<uint32_t> render_last_us_{0};

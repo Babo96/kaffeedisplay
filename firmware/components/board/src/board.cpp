@@ -34,7 +34,15 @@ constexpr const char* kTag = "board";
 
 // The flush wrapper is display-wide and the board owns exactly one display.
 EspDisplay* g_flush_self = nullptr;
-lv_display_flush_cb_t g_port_flush = nullptr;
+
+bool IRAM_ATTR panel_vsync_cb(esp_lcd_panel_handle_t panel,
+                              const esp_lcd_rgb_panel_event_data_t* data, void* user_ctx) {
+    (void)panel;
+    (void)data;
+    auto* self = static_cast<EspDisplay*>(user_ctx);
+    if (self != nullptr) self->on_vsync_from_isr();
+    return false;
+}
 
 // The LEDC divider must be >= 1. On the ESP32-S3 APB clock (80 MHz),
 // 20 kHz * 2^12 = 81.92 MHz exceeds the clock, so 19 kHz is the closest
@@ -1118,8 +1126,21 @@ Result<Unit> EspDisplay::init_lvgl() {
     // and time each one. The port waits for VSYNC inside the flush, so the
     // duration separates a panel-bound from a draw-bound picture.
     g_flush_self = this;
-    g_port_flush = lv_display_get_flush_cb(lv_display_);
-    lv_display_set_flush_cb(lv_display_, &EspDisplay::counting_flush_cb);
+    // Two panel framebuffers, blitted from the internal-RAM draw buffer and
+    // swapped at VSYNC: fast rasterisation (SRAM) without visible tearing.
+    if (esp_lcd_rgb_panel_get_frame_buffer(panel_, 2, &panel_fbs_[0], &panel_fbs_[1]) != ESP_OK) {
+        return Result<Unit>::fail("board/rgb_fbs", "cannot obtain RGB frame buffers");
+    }
+    vsync_sem_ = xSemaphoreCreateCounting(1, 0);
+    if (vsync_sem_ == nullptr) {
+        return Result<Unit>::fail("board/vsync_sem", "cannot create VSYNC semaphore");
+    }
+    esp_lcd_rgb_panel_event_callbacks_t callbacks = {};
+    callbacks.on_vsync = &panel_vsync_cb;
+    if (esp_lcd_rgb_panel_register_event_callbacks(panel_, &callbacks, this) != ESP_OK) {
+        return Result<Unit>::fail("board/vsync_cb", "cannot register the VSYNC callback");
+    }
+    lv_display_set_flush_cb(lv_display_, &EspDisplay::tearfree_flush_cb);
     // Time the render pass separately from the flush: LVGL draws into the
     // framebuffer, then the port's flush waits for VSYNC. Only the split tells
     // whether a slow scroll is drawing-bound or panel-bound.
@@ -1257,10 +1278,44 @@ void EspDisplay::render_ready_cb(lv_event_t* event) {
         static_cast<uint32_t>(esp_timer_get_time() - self->render_start_us_));
 }
 
-void EspDisplay::counting_flush_cb(lv_display_t* display, const lv_area_t* area, uint8_t* pixels) {
+void EspDisplay::on_vsync_from_isr() {
+    if (vsync_sem_ != nullptr) {
+        BaseType_t higher = pdFALSE;
+        xSemaphoreGiveFromISR(vsync_sem_, &higher);
+        if (higher == pdTRUE) portYIELD_FROM_ISR();
+    }
+}
+
+void EspDisplay::tearfree_flush_cb(lv_display_t* display, const lv_area_t* area, uint8_t* pixels) {
     const int64_t started = esp_timer_get_time();
-    if (g_port_flush != nullptr) g_port_flush(display, area, pixels);
-    if (g_flush_self != nullptr) g_flush_self->note_flush(esp_timer_get_time() - started);
+    auto* self = g_flush_self;
+    if (self == nullptr || self->panel_fbs_[0] == nullptr) {
+        lv_display_flush_ready(display);
+        return;
+    }
+
+    // Blit the band from the SRAM draw buffer into the back framebuffer.
+    auto* dst = static_cast<uint16_t*>(self->panel_fbs_[self->back_fb_]);
+    const auto* src = reinterpret_cast<const uint16_t*>(pixels);
+    const int width = lv_area_get_width(area);
+    for (int y = area->y1; y <= area->y2; ++y) {
+        std::memcpy(dst + static_cast<size_t>(y) * kWidth + area->x1,
+                    src + static_cast<size_t>(y - area->y1) * width,
+                    static_cast<size_t>(width) * sizeof(uint16_t));
+    }
+
+    if (lv_display_flush_is_last(display)) {
+        // Hand the finished framebuffer to the panel (the swap happens at the
+        // next VSYNC), then wait one VSYNC so the *other* buffer is no longer
+        // scanned and the next frame may write into it.
+        esp_lcd_panel_draw_bitmap(self->panel_, 0, 0, kWidth, kHeight, dst);
+        xSemaphoreTake(self->vsync_sem_, 0);
+        xSemaphoreTake(self->vsync_sem_, pdMS_TO_TICKS(100));
+        self->back_fb_ = 1 - self->back_fb_;
+    }
+
+    self->note_flush(esp_timer_get_time() - started);
+    lv_display_flush_ready(display);
 }
 
 void EspDisplay::indev_poll_cb(lv_timer_t* timer) {
