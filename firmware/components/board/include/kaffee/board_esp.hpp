@@ -119,6 +119,8 @@ class EspDisplay final : public IDisplay {
     static void touch_read_cb(lv_indev_t* indev, lv_indev_data_t* data);
     static void test_touch_timer_cb(lv_timer_t* timer);
     static void indev_poll_cb(lv_timer_t* timer);
+    // Releases the frame buffer after a VSYNC; called from the panel ISR.
+    void on_vsync_from_isr();
     // Wraps esp_lvgl_port's flush callback to count and time produced frames.
     // Blits each LVGL band from the internal-RAM draw buffer into the back panel
     // framebuffer and swaps framebuffers at VSYNC, so drawing stays fast (SRAM)
@@ -169,8 +171,6 @@ class EspDisplay final : public IDisplay {
     void* panel_fbs_[2] = {nullptr, nullptr};
     int back_fb_ = 1;
     SemaphoreHandle_t vsync_sem_ = nullptr;
-    static bool vsync_cb(esp_lcd_panel_handle_t panel, const esp_lcd_rgb_panel_event_data_t* data,
-                         void* user_ctx);
     // Duration of the last LVGL render pass (drawing, excluding the flush).
     int64_t render_start_us_ = 0;
     std::atomic<uint32_t> render_last_us_{0};

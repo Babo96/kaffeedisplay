@@ -35,6 +35,15 @@ constexpr const char* kTag = "board";
 // The flush wrapper is display-wide and the board owns exactly one display.
 EspDisplay* g_flush_self = nullptr;
 
+bool IRAM_ATTR panel_vsync_cb(esp_lcd_panel_handle_t panel,
+                              const esp_lcd_rgb_panel_event_data_t* data, void* user_ctx) {
+    (void)panel;
+    (void)data;
+    auto* self = static_cast<EspDisplay*>(user_ctx);
+    if (self != nullptr) self->on_vsync_from_isr();
+    return false;
+}
+
 // The LEDC divider must be >= 1. On the ESP32-S3 APB clock (80 MHz),
 // 20 kHz * 2^12 = 81.92 MHz exceeds the clock, so 19 kHz is the closest
 // 12-bit setting that is actually reachable.
@@ -1127,7 +1136,7 @@ Result<Unit> EspDisplay::init_lvgl() {
         return Result<Unit>::fail("board/vsync_sem", "cannot create VSYNC semaphore");
     }
     esp_lcd_rgb_panel_event_callbacks_t callbacks = {};
-    callbacks.on_vsync = &EspDisplay::vsync_cb;
+    callbacks.on_vsync = &panel_vsync_cb;
     if (esp_lcd_rgb_panel_register_event_callbacks(panel_, &callbacks, this) != ESP_OK) {
         return Result<Unit>::fail("board/vsync_cb", "cannot register the VSYNC callback");
     }
@@ -1269,14 +1278,12 @@ void EspDisplay::render_ready_cb(lv_event_t* event) {
         static_cast<uint32_t>(esp_timer_get_time() - self->render_start_us_));
 }
 
-bool IRAM_ATTR EspDisplay::vsync_cb(esp_lcd_panel_handle_t panel,
-                                    const esp_lcd_rgb_panel_event_data_t* data, void* user_ctx) {
-    auto* self = static_cast<EspDisplay*>(user_ctx);
-    BaseType_t higher = pdFALSE;
-    if (self != nullptr && self->vsync_sem_ != nullptr) {
-        xSemaphoreGiveFromISR(self->vsync_sem_, &higher);
+void EspDisplay::on_vsync_from_isr() {
+    if (vsync_sem_ != nullptr) {
+        BaseType_t higher = pdFALSE;
+        xSemaphoreGiveFromISR(vsync_sem_, &higher);
+        if (higher == pdTRUE) portYIELD_FROM_ISR();
     }
-    return higher == pdTRUE;
 }
 
 void EspDisplay::tearfree_flush_cb(lv_display_t* display, const lv_area_t* area, uint8_t* pixels) {
