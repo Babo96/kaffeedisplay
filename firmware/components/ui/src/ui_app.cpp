@@ -106,6 +106,8 @@ void UiAppImpl::start() {
 }
 
 void UiAppImpl::build() {
+    // The boot splash owns the screen until the real UI exists.
+    hide_splash();
     lv_obj_t* screen = lv_screen_active();
     theme::apply_screen(screen);
 
