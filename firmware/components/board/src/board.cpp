@@ -1294,6 +1294,17 @@ void EspDisplay::tearfree_flush_cb(lv_display_t* display, const lv_area_t* area,
         return;
     }
 
+    // A frame only carries the invalidated bands, so the back buffer must start
+    // as a copy of what is currently on screen. Without this the swap alternates
+    // between the new frame and whatever the back buffer held two frames ago -
+    // the field symptom was page 1 flickering against the white boot screen.
+    if (!self->frame_in_progress_) {
+        auto* back = static_cast<uint16_t*>(self->panel_fbs_[self->back_fb_]);
+        const auto* front = static_cast<const uint16_t*>(self->panel_fbs_[1 - self->back_fb_]);
+        std::memcpy(back, front, static_cast<size_t>(kWidth) * kHeight * sizeof(uint16_t));
+        self->frame_in_progress_ = true;
+    }
+
     // Blit the band from the SRAM draw buffer into the back framebuffer.
     auto* dst = static_cast<uint16_t*>(self->panel_fbs_[self->back_fb_]);
     const auto* src = reinterpret_cast<const uint16_t*>(pixels);
@@ -1312,6 +1323,7 @@ void EspDisplay::tearfree_flush_cb(lv_display_t* display, const lv_area_t* area,
         xSemaphoreTake(self->vsync_sem_, 0);
         xSemaphoreTake(self->vsync_sem_, pdMS_TO_TICKS(100));
         self->back_fb_ = 1 - self->back_fb_;
+        self->frame_in_progress_ = false;
     }
 
     self->note_flush(esp_timer_get_time() - started);

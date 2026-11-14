@@ -170,6 +170,7 @@ class EspDisplay final : public IDisplay {
     // and the one we blit into.
     void* panel_fbs_[2] = {nullptr, nullptr};
     int back_fb_ = 1;
+    bool frame_in_progress_ = false;
     SemaphoreHandle_t vsync_sem_ = nullptr;
     // Duration of the last LVGL render pass (drawing, excluding the flush).
     int64_t render_start_us_ = 0;
