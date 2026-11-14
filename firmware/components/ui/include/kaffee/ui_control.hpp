@@ -24,6 +24,12 @@ class UiControl {
     virtual void debug_book_page(int page) = 0;
 };
 
+// Boot splash: a warm brown screen with a simple cup, shown while the service,
+// network and API come up so the panel never shows unstyled framebuffer content.
+// hide_splash() removes it again; the UI calls it before building its pages.
+void show_splash();
+void hide_splash();
+
 // Returns the control surface for the concrete UiApp implementation. Firmware
 // creates UiAppImpl, so the static cast is valid; returns null for a null app.
 UiControl* control_for(UiApp* app);

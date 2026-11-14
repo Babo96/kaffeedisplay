@@ -48,6 +48,7 @@ add_executable(kaffeekasse-sim
   ${UI_DIR}/src/theme.cpp
   ${UI_DIR}/src/format.cpp
   ${UI_DIR}/src/member_order.cpp
+  ${UI_DIR}/src/splash.cpp
   ${UI_DIR}/src/fonts/kaffee_font_14.c
   ${UI_DIR}/src/fonts/kaffee_font_18.c
   ${UI_DIR}/src/fonts/kaffee_font_22.c

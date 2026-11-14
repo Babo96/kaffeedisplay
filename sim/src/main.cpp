@@ -24,6 +24,7 @@ struct Options {
     std::string state = "idle";
     int users = 0;
     int book_page = 0;
+    bool splash = false;
     std::string order = "usage";
     bool click_test = false;
     bool help = false;
@@ -41,10 +42,11 @@ void print_usage(const char* argv0) {
     std::printf(
         "Usage: %s [--page 1|2|3] [--rotation 0|90|180|270]\n"
         "          [--screenshot FILE [--state idle|selected|toast|ap]]\n"
-        "          [--users N] [--book-page N] [--order creation|usage]\n"
+        "          [--users N] [--book-page N] [--order creation|usage] [--splash]\n"
         "          [--click-test]\n\n"
         "  --users N   grow the seeded fund to N active members (N >= 5)\n"
         "  --book-page N  show member page N (12 per page) before capturing\n"
+        "  --splash       capture the boot splash instead of the UI\n"
         "  --order     member order; `usage` (default) = most bookings this\n"
         "              month first, `creation` = join order\n\n"
         "Mouse = touch. Keys: 1/2/3 pages, r rotation, +/- brightness, q quit.\n",
@@ -77,6 +79,8 @@ bool parse_options(int argc, char** argv, Options* options) {
             std::string value;
             if (!next(&value)) return false;
             options->users = std::atoi(value.c_str());
+        } else if (arg == "--splash") {
+            options->splash = true;
         } else if (arg == "--book-page") {
             std::string value;
             if (!next(&value)) return false;
@@ -187,6 +191,11 @@ int main(int argc, char** argv) {
 
     if (screenshot_mode) {
         for (int frame = 0; frame < 60; ++frame) {
+            g_fixed_tick += 16;
+            lv_timer_handler();
+        }
+        if (options.splash) {
+            kaffee::ui::show_splash();
             g_fixed_tick += 16;
             lv_timer_handler();
         }

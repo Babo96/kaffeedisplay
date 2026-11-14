@@ -216,6 +216,14 @@ extern "C" void app_main(void) {
         log_failure("display settings apply", *applied.error);
     }
 
+    // Show the splash as soon as the panel and LVGL exist: everything below this
+    // point (network, console, API, UI construction) takes long enough that the
+    // panel would otherwise show unstyled framebuffer content.
+    if (display->lock(2000)) {
+        kaffee::ui::show_splash();
+        display->unlock();
+    }
+
     // Bring the network up before the UI and console stack allocations. The DNS
     // task needs a contiguous internal-RAM stack; the 12 KiB console and the
     // LVGL page objects must not fragment it first.

@@ -22,9 +22,9 @@ fails the check with an unsupported-PNG error.
 |---|---|
 | ![Booking](03-booking-toast.png) | ![Leaderboard](04-leaderboard.png) |
 
-| Page 3 — system / AP QR |
-|---|
-| ![System](05-system-ap-qr.png) |
+| Page 3 — system / AP QR | Boot splash |
+|---|---|
+| ![System](05-system-ap-qr.png) | ![Boot splash](09-boot-splash.png) |
 
 ### Many members (T-013 layout study)
 
