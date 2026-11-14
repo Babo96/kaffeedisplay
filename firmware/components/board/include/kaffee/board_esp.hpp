@@ -75,6 +75,8 @@ class EspDisplay final : public IDisplay {
     // Keeps the panel awake while an AP/QR session is active. The UI/net layer
     // should call this with true when the AP starts and false when it stops.
     void set_stay_awake(bool stay_awake);
+    // Releases the frame buffer after a VSYNC; called from the panel ISR.
+    void on_vsync_from_isr();
     // Inject a synthetic press into the real LVGL indev read callback. The next
     // callback returns PRESSED, the following one RELEASED, so LVGL runs its
     // normal hit-test/click path. Coordinates are raw panel coordinates.
@@ -119,8 +121,6 @@ class EspDisplay final : public IDisplay {
     static void touch_read_cb(lv_indev_t* indev, lv_indev_data_t* data);
     static void test_touch_timer_cb(lv_timer_t* timer);
     static void indev_poll_cb(lv_timer_t* timer);
-    // Releases the frame buffer after a VSYNC; called from the panel ISR.
-    void on_vsync_from_isr();
     // Wraps esp_lvgl_port's flush callback to count and time produced frames.
     // Blits each LVGL band from the internal-RAM draw buffer into the back panel
     // framebuffer and swaps framebuffers at VSYNC, so drawing stays fast (SRAM)
