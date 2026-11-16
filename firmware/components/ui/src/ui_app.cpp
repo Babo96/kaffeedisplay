@@ -728,6 +728,17 @@ void UiAppImpl::flip_poll_cb(lv_timer_t* timer) {
     const int dy = point.y - app->flip_start_y_;
     const int abs_dx = dx < 0 ? -dx : dx;
     const int abs_dy = dy < 0 ? -dy : dy;
+
+    // The finger is back where the gesture started, so a new swipe begins here -
+    // also the case when the previous release fell between two samples and was
+    // never seen.
+    if (abs_dx < kFlipRearmPx) {
+        app->flip_start_x_ = point.x;
+        app->flip_start_y_ = point.y;
+        app->flip_flipped_ = false;
+        app->flip_suppress_clicks_ = false;
+        return;
+    }
     if (app->flip_flipped_ || abs_dx < kFlipThresholdPx || abs_dx < abs_dy * 2) return;
 
     app->flip_flipped_ = true;

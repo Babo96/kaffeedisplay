@@ -247,6 +247,8 @@ class UiAppImpl final : public UiApp, public UiControl {
     // True when the release belongs to a swipe, so tile clicks ignore it.
     bool swallow_drag_click();
     static constexpr int kFlipThresholdPx = 70;
+    // Below this horizontal excursion the finger counts as back at the start.
+    static constexpr int kFlipRearmPx = 30;
 
     friend struct IdContext;
 };
