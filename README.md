@@ -40,6 +40,38 @@ The device UI is 480×480, German, espresso-themed.
 |---|---|
 | ![Statistik](docs/ui/screenshots/04-leaderboard.png) | ![System](docs/ui/screenshots/05-system-ap-qr.png) |
 
+### Animated low-power coffee standby
+
+After the existing admin-configured **dim timeout** (default 60 seconds),
+the 480×480 kiosk shows a shaded porcelain espresso cup with **three
+staggered rising steam strokes that alternately fade in and out** at the
+configured idle brightness. The standby uses the same native LVGL cup shapes
+as the boot splash, so it needs no separate bitmap or image-generation
+toolchain. The steam remains native LVGL geometry; there are no GIF frames,
+runtime SVG parsing, network downloads, or extra decoders.
+At the configured **screen-off timeout** (default 600 seconds), the steam
+animation pauses. The dark wake overlay remains to consume the first touch
+without triggering a purchase. The admin can change both timeouts and the
+idle brightness in the existing web **Einstellungen** page; setting both
+timeouts to zero disables the standby overlay.
+
+![Coffee standby on device](docs/ui/screenshots/10-coffee-standby.png)
+
+**Docker preview:** `docker compose -f compose.preview.yml up --build` —
+open `http://localhost:6080/vnc.html?autoconnect=1`, leave the
+simulator untouched for **3 seconds** to watch the alternating fade and rise.
+This faster demo configuration applies only to the Docker simulator.
+See [Docker preview instructions](docs/container-preview.md).
+
+The boot splash and standby share their cup drawing in
+`firmware/components/ui/src/cup_art.cpp`. To change it, update that helper and
+run `make screenshots` to regenerate the LVGL screenshots.
+
+For reproducible simulator evidence:
+`./sim/build/kaffeekasse-sim --screenshot /tmp/coffee.png --state standby`.
+The simulator's deterministic screenshot jumps past the idle timeout, rather
+than requiring a real wait. See [the screenshot gallery](docs/ui/screenshots/README.md).
+
 ### Admin backend
 
 | Übersicht | Berichte |
@@ -150,7 +182,7 @@ make flash
 | `docs/api/openapi.yaml` | Admin REST contract |
 | `docs/api/reports.md` | Expected report JSON payload shape and CSV conventions |
 | `docs/ui.md` | Device and admin UI specification |
-| `docs/container-preview.md` | Browser-based Docker device/admin previews |
+| `docs/container-preview.md` | Browser-based Docker device/admin previews, including standby |
 | `docs/security.md` | Threat model, auth, AP policy |
 | `docs/operations.md` | Provisioning, backup, OTA, recovery |
 | `docs/serial-cli.md` | Serial protocol, clock/backup/reset commands |

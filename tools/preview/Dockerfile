@@ -9,8 +9,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /work
 COPY . .
-RUN cmake -S sim -B sim/build -DCMAKE_BUILD_TYPE=Release \
-    && cmake --build sim/build -j 2
+RUN make sim-build
 RUN chmod +x tools/preview/run-simulator.sh
 
 EXPOSE 6080

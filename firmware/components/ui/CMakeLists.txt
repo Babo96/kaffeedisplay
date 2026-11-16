@@ -1,11 +1,13 @@
 set(UI_SOURCES
     "src/ui_app.cpp"
+    "src/standby.cpp"
     "src/page_book.cpp"
     "src/page_stats.cpp"
     "src/page_system.cpp"
     "src/theme.cpp"
     "src/format.cpp"
     "src/member_order.cpp"
+    "src/cup_art.cpp"
     "src/splash.cpp"
     "src/fonts/kaffee_font_14.c"
     "src/fonts/kaffee_font_18.c"
@@ -21,3 +23,4 @@ idf_component_register(
     PRIV_INCLUDE_DIRS "src"
     REQUIRES service lvgl board
 )
+

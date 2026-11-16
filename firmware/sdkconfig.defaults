@@ -72,7 +72,7 @@ CONFIG_LITTLEFS_OBJ_NAME_LEN=64
 
 # LVGL defaults (components may override)
 CONFIG_LV_COLOR_DEPTH_16=y
-# I4 indexed-image palettes are ARGB8888 even on an RGB565 display.
+# I4 avatars and I8 standby images use ARGB8888 palettes even on an RGB565 display.
 CONFIG_LV_DRAW_SW_SUPPORT_ARGB8888=y
 CONFIG_LV_USE_QRCODE=y
 # Use malloc/free instead of LVGL's fixed internal-RAM pool. The pool otherwise

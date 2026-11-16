@@ -25,6 +25,7 @@ python3 tools/embed_web.py --check
 python3 tools/check_docs.py
 ```
 
-`make build`, `make check` and CI run asset generation automatically. Generated
-output is gitignored; see `firmware/components/webassets/README.md` for the
-firmware interface.
+The boot splash and standby cup share native LVGL drawing code, so
+neither firmware nor simulator builds require image-generation tooling. The
+firmware container helper only activates ESP-IDF and builds the image. See
+`firmware/components/webassets/README.md` for the firmware asset interface.

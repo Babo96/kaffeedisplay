@@ -1,5 +1,4 @@
-#include <string>
-
+#include "cup_art.hpp"
 #include "kaffee/ui_control.hpp"
 #include "lvgl.h"
 #include "strings.hpp"
@@ -13,7 +12,6 @@ namespace {
 // deliberate screen rather than a blank panel.
 constexpr uint32_t kSplashBackground = 0x2A1B12;
 constexpr uint32_t kSplashCup = 0xF2E9DC;
-constexpr uint32_t kSplashCoffee = 0x6B4A2F;
 
 lv_obj_t* g_splash = nullptr;
 
@@ -45,23 +43,8 @@ void show_splash() {
     lv_obj_t* root = add_shape(lv_screen_active(), lv_pct(100), lv_pct(100), 0, kSplashBackground);
     g_splash = root;
 
-    // Cup in the middle of the screen: body, coffee surface, handle, saucer and
-    // three steam wisps. Plain LVGL primitives, so the splash needs no artwork
-    // and cannot be the stale framebuffer content that used to show here.
     const int centre_x = 240;
-    lv_obj_t* body = add_shape(root, 132, 108, 22, kSplashCup);
-    lv_obj_set_pos(body, centre_x - 66, 190);
-
-    lv_obj_t* coffee = add_shape(body, 108, 18, 9, kSplashCoffee);
-    lv_obj_set_pos(coffee, 12, 16);
-
-    lv_obj_t* handle = add_shape(root, 52, 52, LV_RADIUS_CIRCLE, kSplashCup);
-    lv_obj_set_pos(handle, centre_x + 52, 214);
-    lv_obj_t* handle_hole = add_shape(handle, 28, 28, LV_RADIUS_CIRCLE, kSplashBackground);
-    lv_obj_center(handle_hole);
-
-    lv_obj_t* saucer = add_shape(root, 196, 16, 8, kSplashCup);
-    lv_obj_set_pos(saucer, centre_x - 98, 302);
+    cup_art::create(root, centre_x, 190, kSplashBackground);
 
     add_steam(root, centre_x - 34, 140, 34);
     add_steam(root, centre_x - 3, 128, 46);

@@ -53,7 +53,8 @@ def main() -> int:
     expected_dir = Path(sys.argv[1])
     generated_dir = Path(sys.argv[2])
     failed = False
-    files = sorted(expected_dir.glob("*.png"))
+    # Device snapshots are numbered 01-..; browser PNGs are tested by Playwright.
+    files = sorted(expected_dir.glob("[0-9][0-9]-*.png"))
     if not files:
         print(f"no screenshots in {expected_dir}")
         return 1

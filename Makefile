@@ -14,7 +14,8 @@ SCREENSHOT_CHECK_DIR ?= /tmp/kaffeekasse-screenshots
 
 .PHONY: help bootstrap build build-native build-docker flash flash-docker monitor \
 	test test-host test-web test-e2e e2e hil web web-dev mock sim sim-build \
-	screenshots screenshots-check test-ui fmt fmt-check lint docs assets tools-deps check clean
+	screenshots screenshots-check test-ui fmt fmt-check lint docs assets tools-deps \
+	check clean
 
 help:
 	@echo "Kaffeekasse targets:"
@@ -43,6 +44,7 @@ bootstrap:
 
 tools-deps:
 	$(PYTHON) -m pip install -r tools/requirements-tools.txt
+
 
 web/node_modules: web/package-lock.json
 	$(NPM) --prefix web ci
@@ -84,8 +86,8 @@ build-native: assets
 	cd firmware && idf.py build
 
 build-docker: assets
-	docker run --rm -v "$(CURDIR)/firmware:/project" -w /project $(IDF_IMAGE) \
-		bash -lc '. $$IDF_PATH/export.sh && idf.py build'
+	docker run --rm -v "$(CURDIR):/repo" -w /repo $(IDF_IMAGE) \
+		bash /repo/tools/build_firmware_container.sh
 
 build:
 	@if [ -n "$(IDF)" ]; then $(MAKE) build-native; else $(MAKE) build-docker; fi
@@ -118,6 +120,7 @@ screenshots: sim-build
 	./sim/build/kaffeekasse-sim --screenshot $(SCREENSHOT_DIR)/06-page1-15-users.png --page 1 --users 15
 	./sim/build/kaffeekasse-sim --screenshot $(SCREENSHOT_DIR)/07-page1-30-users-page3.png --page 1 --users 30 --book-page 2
 	./sim/build/kaffeekasse-sim --screenshot $(SCREENSHOT_DIR)/08-page1-30-users-usage-order.png --page 1 --users 30 --order usage
+	./sim/build/kaffeekasse-sim --screenshot $(SCREENSHOT_DIR)/10-coffee-standby.png --page 1 --state standby
 	./sim/build/kaffeekasse-sim --screenshot $(SCREENSHOT_DIR)/09-boot-splash.png --splash
 
 screenshots-check: sim-build

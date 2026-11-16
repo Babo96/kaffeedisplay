@@ -61,6 +61,27 @@ animation), and product taps never trigger navigation.
 - Display: read-only rotation/brightness/timeouts. Admin changes them in the web.
 - No balances or financial totals.
 
+### Idle power-save screen
+
+The existing `dim_timeout_s`, `brightness_idle` and
+`screen_off_timeout_s` settings are owned by the board power task, not by
+this UI. While dimmed, the top-layer `Kaffeepause` overlay displays a
+porcelain espresso cup with **three individually animated steam strokes**.
+The cup body, coffee surface, handle and saucer share the native LVGL drawing
+helper used by the boot splash; there is no separate standby image asset.
+Each fades in, drifts upward, fades out, then remains invisible until its
+next turn; the three phases are offset by one third of the cycle (every
+3.2 seconds). A shared timer runs at 80 ms intervals with no image frames,
+allocations per frame or external storage. When the board's screen-off
+threshold is reached, the steam timer is paused. The overlay remains to intercept the first wake tap,
+so an invisible tap never accidentally books a drink.
+
+The overlay is suppressed while the AP is active or the display test pattern
+is open. It disappears on touch/activity. With dim and screen-off timeouts both
+disabled, the overlay never appears. Rotation and brightness remain controlled
+from the existing admin settings. See
+[`10-coffee-standby.png`](ui/screenshots/10-coffee-standby.png).
+
 ### Theme
 
 Dark espresso: background `#1A1412`, surface `#241B18`, text `#F5EFE6`, accent

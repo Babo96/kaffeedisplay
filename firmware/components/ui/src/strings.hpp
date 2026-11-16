@@ -106,6 +106,10 @@ inline constexpr const char* SYSTEM_OFF_TIMEOUT = "Bildschirm aus nach";
 inline constexpr const char* SYSTEM_NEVER = "Nie";
 inline constexpr const char* SYSTEM_NONE = "–";
 
+// Power-save illustration
+inline constexpr const char* STANDBY_TITLE = "Kaffeepause";
+inline constexpr const char* STANDBY_TOUCH_HINT = "Zum Aufwecken berühren";
+
 // Shared
 inline constexpr const char* COMMON_ON = "Ein";
 inline constexpr const char* COMMON_OFF = "Aus";
