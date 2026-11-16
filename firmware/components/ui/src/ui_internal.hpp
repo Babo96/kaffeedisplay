@@ -242,6 +242,8 @@ class UiAppImpl final : public UiApp, public UiControl {
     bool flip_tracking_ = false;
     int flip_start_x_ = 0;
     int flip_start_y_ = 0;
+    int flip_peak_dx_ = 0;
+    int flip_peak_dy_ = 0;
     static constexpr int kFlipThresholdPx = 70;
 
     friend struct IdContext;

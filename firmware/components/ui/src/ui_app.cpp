@@ -706,17 +706,31 @@ void UiAppImpl::flip_poll_cb(lv_timer_t* timer) {
         app->flip_tracking_ = true;
         app->flip_start_x_ = point.x;
         app->flip_start_y_ = point.y;
+        app->flip_peak_dx_ = 0;
+        app->flip_peak_dy_ = 0;
         return;
     }
-    if (!pressed && app->flip_tracking_) {
+    if (pressed) {
+        // Track the furthest excursion, not the release point: the release is
+        // only sampled every 20 ms, and a fast swipe often ends between two
+        // samples, which silently dropped one flip in four on the device.
+        const int dx = point.x - app->flip_start_x_;
+        const int dy = point.y - app->flip_start_y_;
+        if (dx < 0 ? -dx
+                   : dx >= (app->flip_peak_dx_ < 0 ? -app->flip_peak_dx_ : app->flip_peak_dx_)) {
+            app->flip_peak_dx_ = dx;
+        }
+        const int abs_dy = dy < 0 ? -dy : dy;
+        if (abs_dy > app->flip_peak_dy_) app->flip_peak_dy_ = abs_dy;
+        return;
+    }
+    if (app->flip_tracking_) {
         // Flip on release: doing it mid-drag would let the finger land on the
         // new page's tiles and book a drink.
         app->flip_tracking_ = false;
-        const int dx = point.x - app->flip_start_x_;
-        const int dy = point.y - app->flip_start_y_;
+        const int dx = app->flip_peak_dx_;
         const int abs_dx = dx < 0 ? -dx : dx;
-        const int abs_dy = dy < 0 ? -dy : dy;
-        if (abs_dx < kFlipThresholdPx || abs_dx < abs_dy * 2) return;
+        if (abs_dx < kFlipThresholdPx || abs_dx < app->flip_peak_dy_ * 2) return;
         if (dx < 0 && app->current_page_ < 2) {
             app->show_page(app->current_page_ + 1, false);
         } else if (dx > 0 && app->current_page_ > 0) {
