@@ -115,7 +115,9 @@ void UiAppImpl::start() {
     // Swipe recognition runs off the indev stream rather than LVGL gestures: a
     // gesture raised on the statistics/system pages dies as soon as their lists
     // start scrolling, and the pages must flip from anywhere.
-    flip_timer_ = lv_timer_create(&UiAppImpl::flip_poll_cb, 20, this);
+    // 10 ms: the board reads the indev every 12 ms, so sampling slower than that
+    // regularly skipped the point a swipe ended on and dropped flips.
+    flip_timer_ = lv_timer_create(&UiAppImpl::flip_poll_cb, 10, this);
     started_ = true;
     last_book_activity_ = lv_tick_get();
     show_page(0, false);
