@@ -8,8 +8,11 @@ panel never displays unstyled framebuffer content while the service, network and
 API initialise (`ui::show_splash()` / `hide_splash()`).
 
 Horizontal `lv_tileview`, three pages, dots at the bottom. Swipe or tap a page
-dot to change pages; a swipe snaps to the nearest page instantly (no sliding
-animation), and product taps never trigger navigation.
+dot to change pages. Pages **flip**: the tileview cannot be dragged, so the
+content never follows the finger, and a horizontal swipe (≥70 px, mostly
+horizontal) switches the page in a single static frame on release. A swipe
+during a drag cannot book anything, because the flip happens on release. Product
+taps never trigger navigation.
 
 ### Page 1 — Buchen
 

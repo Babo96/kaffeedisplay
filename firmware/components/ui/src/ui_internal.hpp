@@ -148,7 +148,7 @@ class UiAppImpl final : public UiApp, public UiControl {
     static void time_sync_cb(lv_event_t* event);
     static void test_overlay_click_cb(lv_event_t* event);
     static void tileview_changed_cb(lv_event_t* event);
-    static void tileview_scroll_end_cb(lv_event_t* event);
+    static void flip_poll_cb(lv_timer_t* timer);
 
     IUiBackend& backend_;
     ChangeQueue queue_;
@@ -237,6 +237,12 @@ class UiAppImpl final : public UiApp, public UiControl {
     bool standby_animating_ = false;
 
     lv_timer_t* housekeeping_timer_ = nullptr;
+    // Horizontal swipe-to-flip recogniser (indev stream, not LVGL gestures).
+    lv_timer_t* flip_timer_ = nullptr;
+    bool flip_tracking_ = false;
+    int flip_start_x_ = 0;
+    int flip_start_y_ = 0;
+    static constexpr int kFlipThresholdPx = 70;
 
     friend struct IdContext;
 };

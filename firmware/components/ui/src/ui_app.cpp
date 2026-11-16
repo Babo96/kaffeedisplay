@@ -1,6 +1,8 @@
 #include "ui_internal.hpp"
 
 #include <cstdio>
+
+#include <cstdio>
 #include <cstdlib>
 #include <memory>
 #include <utility>
@@ -78,6 +80,10 @@ UiAppImpl::~UiAppImpl() {
         lv_timer_delete(housekeeping_timer_);
         housekeeping_timer_ = nullptr;
     }
+    if (flip_timer_ != nullptr) {
+        lv_timer_delete(flip_timer_);
+        flip_timer_ = nullptr;
+    }
     remove_test_pattern();
     if (standby_timer_ != nullptr) {
         lv_timer_delete(standby_timer_);
@@ -106,6 +112,10 @@ void UiAppImpl::start() {
     build();
     backend_.set_change_callback([this]() { queue_.push(); });
     housekeeping_timer_ = lv_timer_create(&UiAppImpl::housekeeping_cb, 100, this);
+    // Swipe recognition runs off the indev stream rather than LVGL gestures: a
+    // gesture raised on the statistics/system pages dies as soon as their lists
+    // start scrolling, and the pages must flip from anywhere.
+    flip_timer_ = lv_timer_create(&UiAppImpl::flip_poll_cb, 20, this);
     started_ = true;
     last_book_activity_ = lv_tick_get();
     show_page(0, false);
@@ -127,10 +137,14 @@ void UiAppImpl::build() {
     lv_obj_set_style_pad_all(tileview_, 0, 0);
     lv_obj_set_scrollbar_mode(tileview_, LV_SCROLLBAR_MODE_OFF);
     lv_obj_add_event_cb(tileview_, &UiAppImpl::tileview_changed_cb, LV_EVENT_VALUE_CHANGED, this);
-    // A swipe still picks the page, but it snaps there instantly: the animated
-    // settle was the last full-screen animation, and the panel cannot draw one
-    // without tearing or a multi-frame redraw.
-    lv_obj_add_event_cb(tileview_, &UiAppImpl::tileview_scroll_end_cb, LV_EVENT_SCROLL_END, this);
+    // Pages flip, they do not slide: dragging is disabled so the content never
+    // follows the finger (at this frame rate a drag reads as stutter), and a
+    // swipe gesture switches the page in one static frame. Gestures are
+    // delivered to the pressed child, so the pages opt into bubbling below.
+    // No dragging at all: `scroll_dir` alone still lets the tileview follow a
+    // drag, which both defeats the flip and shows the low frame rate as stutter.
+    lv_obj_set_scroll_dir(tileview_, LV_DIR_NONE);
+    lv_obj_clear_flag(tileview_, LV_OBJ_FLAG_SCROLLABLE);
 
     for (int i = 0; i < 3; ++i) {
         tiles_[i] = lv_tileview_add_tile(tileview_, static_cast<uint8_t>(i), 0, LV_DIR_HOR);
@@ -143,6 +157,10 @@ void UiAppImpl::build() {
     build_page_dots();
     build_toast();
     build_standby();
+
+    // A gesture is delivered to the object that was pressed (a card, an avatar,
+    // a label), so every descendant must bubble it upwards for the tileview to
+    // see the flip.
 }
 
 lv_obj_t* UiAppImpl::build_header(lv_obj_t* parent, const char* title, lv_obj_t** clock_label) {
@@ -674,17 +692,37 @@ void UiAppImpl::delete_context_cb(lv_event_t* event) {
     delete static_cast<IdContext*>(lv_event_get_user_data(event));
 }
 
-void UiAppImpl::tileview_scroll_end_cb(lv_event_t* event) {
-    auto* app = static_cast<UiAppImpl*>(lv_event_get_user_data(event));
-    if (app == nullptr || app->tileview_ == nullptr) return;
-    // Nearest page to where the finger left the content, snapped without
-    // animation.
-    const int scroll_x = lv_obj_get_scroll_x(app->tileview_);
-    constexpr int kPageWidth = 480;
-    int target = (scroll_x + kPageWidth / 2) / kPageWidth;
-    if (target < 0) target = 0;
-    if (target > 2) target = 2;
-    app->show_page(target, false);
+void UiAppImpl::flip_poll_cb(lv_timer_t* timer) {
+    auto* app = static_cast<UiAppImpl*>(lv_timer_get_user_data(timer));
+    if (app == nullptr) return;
+    lv_indev_t* indev = lv_indev_get_next(nullptr);
+    if (indev == nullptr) return;
+
+    lv_point_t point = {};
+    lv_indev_get_point(indev, &point);
+    const bool pressed = lv_indev_get_state(indev) == LV_INDEV_STATE_PRESSED;
+
+    if (pressed && !app->flip_tracking_) {
+        app->flip_tracking_ = true;
+        app->flip_start_x_ = point.x;
+        app->flip_start_y_ = point.y;
+        return;
+    }
+    if (!pressed && app->flip_tracking_) {
+        // Flip on release: doing it mid-drag would let the finger land on the
+        // new page's tiles and book a drink.
+        app->flip_tracking_ = false;
+        const int dx = point.x - app->flip_start_x_;
+        const int dy = point.y - app->flip_start_y_;
+        const int abs_dx = dx < 0 ? -dx : dx;
+        const int abs_dy = dy < 0 ? -dy : dy;
+        if (abs_dx < kFlipThresholdPx || abs_dx < abs_dy * 2) return;
+        if (dx < 0 && app->current_page_ < 2) {
+            app->show_page(app->current_page_ + 1, false);
+        } else if (dx > 0 && app->current_page_ > 0) {
+            app->show_page(app->current_page_ - 1, false);
+        }
+    }
 }
 
 void UiAppImpl::tileview_changed_cb(lv_event_t* event) {
