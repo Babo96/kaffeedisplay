@@ -240,10 +240,12 @@ class UiAppImpl final : public UiApp, public UiControl {
     // Horizontal swipe-to-flip recogniser (indev stream, not LVGL gestures).
     lv_timer_t* flip_timer_ = nullptr;
     bool flip_tracking_ = false;
+    bool flip_flipped_ = false;
+    bool flip_suppress_clicks_ = false;
     int flip_start_x_ = 0;
     int flip_start_y_ = 0;
-    int flip_peak_dx_ = 0;
-    int flip_peak_dy_ = 0;
+    // True when the release belongs to a swipe, so tile clicks ignore it.
+    bool swallow_drag_click();
     static constexpr int kFlipThresholdPx = 70;
 
     friend struct IdContext;

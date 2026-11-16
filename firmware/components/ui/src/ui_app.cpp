@@ -697,6 +697,12 @@ void UiAppImpl::flip_poll_cb(lv_timer_t* timer) {
     if (app == nullptr) return;
     lv_indev_t* indev = lv_indev_get_next(nullptr);
     if (indev == nullptr) return;
+    // A swipe on the standby or the test pattern only wakes/leaves it; it must
+    // not flip the page underneath.
+    if (app->standby_active_ || app->test_overlay_ != nullptr) {
+        app->flip_tracking_ = false;
+        return;
+    }
 
     lv_point_t point = {};
     lv_indev_get_point(indev, &point);
@@ -704,39 +710,43 @@ void UiAppImpl::flip_poll_cb(lv_timer_t* timer) {
 
     if (pressed && !app->flip_tracking_) {
         app->flip_tracking_ = true;
+        app->flip_flipped_ = false;
+        app->flip_suppress_clicks_ = false;
         app->flip_start_x_ = point.x;
         app->flip_start_y_ = point.y;
-        app->flip_peak_dx_ = 0;
-        app->flip_peak_dy_ = 0;
         return;
     }
-    if (pressed) {
-        // Track the furthest excursion, not the release point: the release is
-        // only sampled every 20 ms, and a fast swipe often ends between two
-        // samples, which silently dropped one flip in four on the device.
-        const int dx = point.x - app->flip_start_x_;
-        const int dy = point.y - app->flip_start_y_;
-        if (dx < 0 ? -dx
-                   : dx >= (app->flip_peak_dx_ < 0 ? -app->flip_peak_dx_ : app->flip_peak_dx_)) {
-            app->flip_peak_dx_ = dx;
-        }
-        const int abs_dy = dy < 0 ? -dy : dy;
-        if (abs_dy > app->flip_peak_dy_) app->flip_peak_dy_ = abs_dy;
-        return;
-    }
-    if (app->flip_tracking_) {
-        // Flip on release: doing it mid-drag would let the finger land on the
-        // new page's tiles and book a drink.
+    if (!pressed) {
         app->flip_tracking_ = false;
-        const int dx = app->flip_peak_dx_;
-        const int abs_dx = dx < 0 ? -dx : dx;
-        if (abs_dx < kFlipThresholdPx || abs_dx < app->flip_peak_dy_ * 2) return;
-        if (dx < 0 && app->current_page_ < 2) {
-            app->show_page(app->current_page_ + 1, false);
-        } else if (dx > 0 && app->current_page_ > 0) {
-            app->show_page(app->current_page_ - 1, false);
-        }
+        return;
     }
+
+    // Flip as soon as the swipe is unambiguous instead of waiting for the
+    // release: the release is only sampled every 20 ms and a fast swipe often
+    // ends between two samples, which dropped flips on the device.
+    const int dx = point.x - app->flip_start_x_;
+    const int dy = point.y - app->flip_start_y_;
+    const int abs_dx = dx < 0 ? -dx : dx;
+    const int abs_dy = dy < 0 ? -dy : dy;
+    if (app->flip_flipped_ || abs_dx < kFlipThresholdPx || abs_dx < abs_dy * 2) return;
+
+    app->flip_flipped_ = true;
+    // The finger is still down and now rests on the next page, so the click its
+    // release produces must be discarded - a swipe must never book a drink.
+    app->flip_suppress_clicks_ = true;
+    if (dx < 0 && app->current_page_ < 2) {
+        app->show_page(app->current_page_ + 1, false);
+    } else if (dx > 0 && app->current_page_ > 0) {
+        app->show_page(app->current_page_ - 1, false);
+    }
+}
+
+bool UiAppImpl::swallow_drag_click() {
+    if (!flip_suppress_clicks_) return false;
+    // Consumed once, and dropped as soon as the finger is up again so the next
+    // deliberate tap works normally.
+    if (!flip_tracking_) flip_suppress_clicks_ = false;
+    return true;
 }
 
 void UiAppImpl::tileview_changed_cb(lv_event_t* event) {

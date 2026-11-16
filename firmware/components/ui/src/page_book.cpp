@@ -390,13 +390,15 @@ void UiAppImpl::user_click_cb(lv_event_t* event) {
 void UiAppImpl::product_click_cb(lv_event_t* event) {
     auto* ctx = static_cast<IdContext*>(lv_event_get_user_data(event));
     if (ctx == nullptr || ctx->app == nullptr) return;
+    if (ctx->app->swallow_drag_click()) return;
     auto product = ctx->app->backend_.find_product(ctx->id);
     if (product) ctx->app->book_product(*product);
 }
 
 void UiAppImpl::guest_click_cb(lv_event_t* event) {
     auto* app = static_cast<UiAppImpl*>(lv_event_get_user_data(event));
-    if (app != nullptr) app->select_guest();
+    if (app == nullptr || app->swallow_drag_click()) return;
+    app->select_guest();
 }
 
 void UiAppImpl::change_user_cb(lv_event_t* event) {
