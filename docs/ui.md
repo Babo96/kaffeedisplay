@@ -69,12 +69,13 @@ swallowed, so a scroll can never book a drink.
 
 ### Page 3 — System
 
-- Header chip `SD` directly beside the clock, inside the fixed 56 px header
-  band (no card and no extra line above the WLAN card): `fehlt` (muted) when no
-  compatible card is mounted, the last success time (`09:11`, time only) when a
-  run wrote, `Fehler` in the warning colour after a failed write (never the raw
-  error text) and `ok` (muted) while a card is present but no run has succeeded.
-  A run that succeeded while the clock was unset shows `gesichert`, never 1970.
+- Header state at the clock baseline, inside the fixed 56 px header band (no
+  `HH:MM`, no card and no extra line above the WLAN card): `SD fehlt` (muted)
+  when no compatible card is mounted, `SD ok` in the positive colour when the
+  last run wrote, `SD Fehler` in the warning colour after a failed write (never
+  the raw error text) and `SD erkannt` (muted) while a card is present but
+  nothing was written yet. A success with an unset clock also reads `SD ok`;
+  no backup timestamp is shown on the panel (it stays in the serial log).
 - WLAN card: status, `WLAN starten` (3 s long-press), countdown, `Verlängern`,
   `Stoppen`. QR codes only while AP is active: Wi-Fi join + URL. If only STA is
   up, URL QR for the LAN address.

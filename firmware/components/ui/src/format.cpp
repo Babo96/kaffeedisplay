@@ -225,35 +225,24 @@ std::string rotation_label(int degrees) {
 SdBackupStatus sd_backup_status(bool card_present, bool backup_ok, Timestamp last_success,
                                 bool has_error) {
     // Mirrors sd::kNoClockSuccess: a run succeeded while the wall clock was
-    // unset. Rendering it as a date would show 1970.
+    // unset. The header never shows a time, so no 1970 can leak out.
     constexpr Timestamp kNoClockSuccess = 1;
 
-    SdBackupStatus status;
-    if (!card_present) {
-        status.state = SdBackupState::NotDetected;
-        status.value = strings::SYSTEM_SD_NOT_DETECTED;
+    auto named = [](SdBackupState state, const char* word) {
+        SdBackupStatus status;
+        status.state = state;
+        status.value = std::string(strings::SYSTEM_SD) + " " + word;
         return status;
-    }
+    };
+
+    if (!card_present) return named(SdBackupState::NotDetected, strings::SYSTEM_SD_NOT_DETECTED);
     if (backup_ok) {
-        if (last_success <= kNoClockSuccess) {
-            status.state = SdBackupState::SavedWithoutClock;
-            status.value = strings::SYSTEM_SD_SAVED;
-        } else {
-            // The header has no room for a date; the time alone keeps the chip
-            // short and still says when the last run finished.
-            status.state = SdBackupState::Saved;
-            status.value = format_clock(last_success);
-        }
-        return status;
+        return named(last_success <= kNoClockSuccess ? SdBackupState::SavedWithoutClock
+                                                     : SdBackupState::Saved,
+                     strings::SYSTEM_SD_OK);
     }
-    if (has_error) {
-        status.state = SdBackupState::Error;
-        status.value = strings::SYSTEM_SD_ERROR;
-        return status;
-    }
-    status.state = SdBackupState::Present;
-    status.value = strings::SYSTEM_SD_DETECTED;
-    return status;
+    if (has_error) return named(SdBackupState::Error, strings::SYSTEM_SD_ERROR);
+    return named(SdBackupState::Present, strings::SYSTEM_SD_DETECTED);
 }
 
 }  // namespace kaffee::ui

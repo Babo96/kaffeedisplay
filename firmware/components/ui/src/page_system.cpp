@@ -372,16 +372,15 @@ void UiAppImpl::update_system_dynamic() {
     set_stat(STAT_NETWORK, ip);
     set_stat(STAT_DRINKS_TODAY, std::to_string(stats.drinks_today));
 
-    // Backup chip: reads the cached status only, never the card. The raw error
-    // message stays in the log; the header shows a short German state.
+    // Backup state: reads the cached status only, never the card. The raw
+    // error message stays in the log; the header shows one German word.
     const SdBackupStatus sd = sd_backup_status(stats.sd_card_present, stats.sd_backup_ok,
                                                stats.sd_last_success, !stats.sd_last_error.empty());
     if (system_sd_label_ != nullptr) {
         lv_label_set_text(system_sd_label_, sd.value.c_str());
-        lv_color_t color = theme::color(theme::COLOR_TEXT);
-        if (sd.state == SdBackupState::NotDetected || sd.state == SdBackupState::Present ||
-            sd.state == SdBackupState::SavedWithoutClock) {
-            color = theme::color(theme::COLOR_MUTED);
+        lv_color_t color = theme::color(theme::COLOR_MUTED);
+        if (sd.state == SdBackupState::Saved || sd.state == SdBackupState::SavedWithoutClock) {
+            color = theme::color(theme::COLOR_POSITIVE);
         } else if (sd.state == SdBackupState::Error) {
             color = theme::color(theme::COLOR_NEGATIVE);
         }

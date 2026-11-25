@@ -39,7 +39,7 @@ enum class SdBackupState {
 
 struct SdBackupStatus {
     SdBackupState state = SdBackupState::NotDetected;
-    std::string value;  // short German state word or the last success time
+    std::string value;  // `SD` + short German state word, ready to render
 };
 
 SdBackupStatus sd_backup_status(bool card_present, bool backup_ok, Timestamp last_success,

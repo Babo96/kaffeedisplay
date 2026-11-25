@@ -88,17 +88,17 @@ restoring from the card.
 - **Not verified on hardware**: no card and no `/dev/ttyUSB0` were available.
   The physical mount, card removal while mounted and brown-out behaviour remain
   to be checked on the device.
-- **Page 3 status chip** (designer): the backup state lives inside the 56 px
-  page header, right of the title and left of the clock — `SD` plus `fehlt`
-  (muted), the last success time (`09:11`, time only), `Fehler` (warning) or
-  `ok` (muted); `gesichert` for the unset-clock marker. It renders from cached
-  `stats()` only (no mount, no filesystem access), refreshes with the existing
-  page-3 cadence (immediate on page entry, 5 s throttle) and re-texts one label
-  instead of rebuilding objects. The raw English `sd_last_error` never reaches
-  the panel. Measured on the committed capture: the chip occupies x 320–407,
-  y 19–43; every pixel at y ≥ 44 (WLAN card, both QR codes, both captions, the
-  page dots) is identical to the previous screenshot, so the primary QR block
-  keeps its full quiet zone. `docs/ui/screenshots/05-system-ap-qr.png`
+- **Page 3 status word** (designer): `SD` plus one state word at the clock
+  baseline inside the 56 px header — `SD fehlt` / `SD erkannt` (muted), `SD ok`
+  (positive colour), `SD Fehler` (negative). No timestamp, no pill, no border;
+  the last success stays in the serial log. One label, re-texted by the existing
+  page-3 refresh (immediate on page entry, 5 s throttle) from cached `stats()`
+  only. Measured on the committed capture: the longest token `SD erkannt` is
+  102 px wide (ink x 298–399), the gap to the clock is 16 px and the title ends
+  at x 108, leaving 189 px slack at 480 px. Pixel diff against `main`: only rows
+  24–37 / columns 347–399 differ (`SD ok`); every row ≥ 45 is identical, so the
+  WLAN card, both QR codes with their quiet zone and captions and the page dots
+  render exactly as before. `docs/ui/screenshots/05-system-ap-qr.png`
   regenerated; `make test-ui` and `tools/check_screenshots.py` cover the page.
 
 ## Risks

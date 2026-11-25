@@ -183,33 +183,14 @@ lv_obj_t* UiAppImpl::build_header(lv_obj_t* parent, const char* title, lv_obj_t*
         theme::make_label(header, title, theme::font_title_bold(), theme::color(theme::COLOR_TEXT));
 
     if (sd_label != nullptr) {
-        // Backup status sits in the header band, so nothing above the WLAN card
-        // grows. The title takes the free space and keeps the chip + clock on
-        // the right edge.
+        // Backup state sits in the header band as plain text, so nothing above
+        // the WLAN card grows. The title takes the free space; one 16 px gap
+        // separates the state from the clock.
         lv_obj_set_flex_grow(title_label, 1);
-        lv_obj_set_style_pad_column(header, 8, 0);
+        lv_obj_set_style_pad_column(header, 16, 0);
 
-        lv_obj_t* chip = lv_obj_create(header);
-        theme::make_transparent(chip);
-        lv_obj_set_size(chip, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-        lv_obj_set_flex_flow(chip, LV_FLEX_FLOW_ROW);
-        lv_obj_set_flex_align(chip, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-        // A faint pill separates the backup state from the clock; without it
-        // the two time values next to each other read as one string.
-        lv_obj_set_style_bg_color(chip, theme::color(theme::COLOR_SURFACE), 0);
-        lv_obj_set_style_bg_opa(chip, LV_OPA_COVER, 0);
-        lv_obj_set_style_border_width(chip, 1, 0);
-        lv_obj_set_style_border_color(chip, theme::color(theme::COLOR_BORDER), 0);
-        lv_obj_set_style_radius(chip, 9, 0);
-        lv_obj_set_style_pad_hor(chip, 8, 0);
-        lv_obj_set_style_pad_ver(chip, 2, 0);
-        lv_obj_set_style_pad_column(chip, 5, 0);
-        theme::hide_scrollbars(chip);
-
-        theme::make_label(chip, strings::SYSTEM_SD, theme::font_body(),
-                          theme::color(theme::COLOR_MUTED));
         lv_obj_t* state =
-            theme::make_label(chip, "", theme::font_body(), theme::color(theme::COLOR_MUTED));
+            theme::make_label(header, "", theme::font_body(), theme::color(theme::COLOR_MUTED));
         *sd_label = state;
     }
 
