@@ -239,6 +239,9 @@ jobs:
             echo "Initial release." > release/CHANGELOG.md
           fi
           git log --pretty=format:'- %s (`%h`)' "$range" >> release/CHANGELOG.md
+          # `git log` writes no trailing newline; without this the first heredoc
+          # line would be glued to the last commit bullet.
+          echo >> release/CHANGELOG.md
           cat >> release/CHANGELOG.md <<'EOF'
 
           ## Firmware
