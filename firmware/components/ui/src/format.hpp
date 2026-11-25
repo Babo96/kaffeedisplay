@@ -26,8 +26,9 @@ std::string initials(const std::string& name);
 std::string time_source_label(TimeSource source, const std::string& last_source);
 std::string rotation_label(int degrees);
 
-// State of the microSD backup row on page 3. The raw backend error text is
-// English and technical, so it never reaches the panel; only this mapping does.
+// State of the microSD backup chip in the page-3 header. The raw backend error
+// text is English and technical, so it never reaches the panel; only this
+// mapping does. Every value is short enough to sit beside the clock.
 enum class SdBackupState {
     NotDetected,        // no compatible card, or the mount failed
     Present,            // card seen, no run has succeeded yet
@@ -38,8 +39,7 @@ enum class SdBackupState {
 
 struct SdBackupStatus {
     SdBackupState state = SdBackupState::NotDetected;
-    std::string value;       // short German value for the row
-    bool attention = false;  // show the actionable hint under the row
+    std::string value;  // short German state word or the last success time
 };
 
 SdBackupStatus sd_backup_status(bool card_present, bool backup_ok, Timestamp last_success,

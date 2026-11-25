@@ -87,14 +87,13 @@ inline constexpr const char* SYSTEM_TIME_BROWSER = "Browser";
 inline constexpr const char* SYSTEM_TIME_SNTP = "SNTP";
 inline constexpr const char* SYSTEM_TIME_RESTORED = "Wiederhergestellt";
 inline constexpr const char* SYSTEM_TIME_UNSET = "Nicht gesetzt";
-// Backup card (top of page 3). The value itself is composed in format.cpp.
-inline constexpr const char* SYSTEM_SD = "Backup-SD";
-inline constexpr const char* SYSTEM_SD_NOT_DETECTED = "nicht erkannt";
-inline constexpr const char* SYSTEM_SD_DETECTED = "erkannt";
+// Backup status in the page-3 header. `SYSTEM_SD` is the muted prefix; the
+// state label carries the colour and one short word or the last success time.
+inline constexpr const char* SYSTEM_SD = "SD";
+inline constexpr const char* SYSTEM_SD_NOT_DETECTED = "fehlt";
+inline constexpr const char* SYSTEM_SD_DETECTED = "ok";
 inline constexpr const char* SYSTEM_SD_SAVED = "gesichert";
-inline constexpr const char* SYSTEM_SD_ERROR = "Fehler beim Sichern";
-inline constexpr const char* SYSTEM_SD_CAPTION = "Täglich automatisch um 00:08 Uhr";
-inline constexpr const char* SYSTEM_SD_HINT = "Karte einsetzen oder prüfen";
+inline constexpr const char* SYSTEM_SD_ERROR = "Fehler";
 
 inline constexpr const char* SYSTEM_DEVICE = "Gerät";
 inline constexpr const char* SYSTEM_TEMPERATURE = "Chip-Temperatur";

@@ -88,13 +88,18 @@ restoring from the card.
 - **Not verified on hardware**: no card and no `/dev/ttyUSB0` were available.
   The physical mount, card removal while mounted and brown-out behaviour remain
   to be checked on the device.
-- **Page 3 status row** (designer): slim `Backup-SD` card above WLAN, rendered
-  from cached `stats()` only (no mount, no filesystem access), refreshed with
-  the existing 5 s page-3 cadence. States: `nicht erkannt` (muted),
-  `11.11.2026 09:41`-style last success, `Fehler beim Sichern` (warning),
-  `erkannt` (muted) and `gesichert` for the unset-clock marker; the raw English
-  `sd_last_error` never reaches the panel. `docs/ui/screenshots/05-system-ap-qr.png`
-  regenerated; `make test-ui` and `tools/check_screenshots.py` cover the row.
+- **Page 3 status chip** (designer): the backup state lives inside the 56 px
+  page header, right of the title and left of the clock — `SD` plus `fehlt`
+  (muted), the last success time (`09:11`, time only), `Fehler` (warning) or
+  `ok` (muted); `gesichert` for the unset-clock marker. It renders from cached
+  `stats()` only (no mount, no filesystem access), refreshes with the existing
+  page-3 cadence (immediate on page entry, 5 s throttle) and re-texts one label
+  instead of rebuilding objects. The raw English `sd_last_error` never reaches
+  the panel. Measured on the committed capture: the chip occupies x 320–407,
+  y 19–43; every pixel at y ≥ 44 (WLAN card, both QR codes, both captions, the
+  page dots) is identical to the previous screenshot, so the primary QR block
+  keeps its full quiet zone. `docs/ui/screenshots/05-system-ap-qr.png`
+  regenerated; `make test-ui` and `tools/check_screenshots.py` cover the page.
 
 ## Risks
 

@@ -81,12 +81,12 @@ class UiAppImpl final : public UiApp, public UiControl {
         STAT_MAC,
         STAT_NETWORK,
         STAT_DRINKS_TODAY,
-        STAT_SD_BACKUP,
         STAT_COUNT,
     };
 
     void build();
-    lv_obj_t* build_header(lv_obj_t* parent, const char* title, lv_obj_t** clock_label);
+    lv_obj_t* build_header(lv_obj_t* parent, const char* title, lv_obj_t** clock_label,
+                           lv_obj_t** sd_label = nullptr);
     void build_page_book(lv_obj_t* tile);
     void build_page_stats(lv_obj_t* tile);
     void build_page_system(lv_obj_t* tile);
@@ -204,8 +204,8 @@ class UiAppImpl final : public UiApp, public UiControl {
     lv_obj_t* system_time_last_ = nullptr;
     lv_obj_t* system_time_quality_ = nullptr;
     lv_obj_t* system_time_warning_ = nullptr;
-    // Caption under the Backup-SD row; swaps to the actionable hint.
-    lv_obj_t* system_sd_caption_ = nullptr;
+    // Backup state label in the page-3 header chip.
+    lv_obj_t* system_sd_label_ = nullptr;
     lv_obj_t* stat_values_[STAT_COUNT] = {};
     bool last_ap_active_ = false;
     bool stay_awake_ = false;

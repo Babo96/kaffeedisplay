@@ -69,7 +69,7 @@ lv_obj_t* make_qr_block(lv_obj_t* parent, const std::string& payload, const char
 }  // namespace
 
 void UiAppImpl::build_page_system(lv_obj_t* tile) {
-    build_header(tile, strings::SYSTEM_TITLE, &clock_labels_[2]);
+    build_header(tile, strings::SYSTEM_TITLE, &clock_labels_[2], &system_sd_label_);
 
     system_body_ = lv_obj_create(tile);
     lv_obj_set_size(system_body_, lv_pct(100), 424);
@@ -127,7 +127,6 @@ void UiAppImpl::build_system_body() {
     system_time_last_ = nullptr;
     system_time_quality_ = nullptr;
     system_time_warning_ = nullptr;
-    system_sd_caption_ = nullptr;
     for (lv_obj_t*& value : stat_values_) value = nullptr;
 
     NetworkStatus network = backend_.network_status();
@@ -167,19 +166,6 @@ void UiAppImpl::build_system_body() {
             theme::set_wrapped(start_hint);
         }
     }
-
-    // --- Backup (microSD) -------------------------------------------------
-    // Calm status strip at the top: the only silent background job, so it is
-    // worth seeing before the admin actions. One row, one caption.
-    lv_obj_t* backup = theme::make_card(system_body_);
-    lv_obj_set_width(backup, lv_pct(100));
-    lv_obj_set_height(backup, LV_SIZE_CONTENT);
-    lv_obj_set_flex_flow(backup, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_style_pad_row(backup, 2, 0);
-    make_info_row(backup, strings::SYSTEM_SD, "", &stat_values_[STAT_SD_BACKUP]);
-    system_sd_caption_ = theme::make_label(backup, strings::SYSTEM_SD_CAPTION, theme::font_small(),
-                                           theme::color(theme::COLOR_DIM));
-    theme::set_wrapped(system_sd_caption_);
 
     // --- WLAN -------------------------------------------------------------
     lv_obj_t* wlan = theme::make_card(system_body_);
@@ -386,23 +372,20 @@ void UiAppImpl::update_system_dynamic() {
     set_stat(STAT_NETWORK, ip);
     set_stat(STAT_DRINKS_TODAY, std::to_string(stats.drinks_today));
 
-    // Backup row: reads the cached status only, never the card. The raw error
-    // message stays in the log; the panel shows a short German state.
+    // Backup chip: reads the cached status only, never the card. The raw error
+    // message stays in the log; the header shows a short German state.
     const SdBackupStatus sd = sd_backup_status(stats.sd_card_present, stats.sd_backup_ok,
                                                stats.sd_last_success, !stats.sd_last_error.empty());
-    if (stat_values_[STAT_SD_BACKUP] != nullptr) {
-        lv_label_set_text(stat_values_[STAT_SD_BACKUP], sd.value.c_str());
+    if (system_sd_label_ != nullptr) {
+        lv_label_set_text(system_sd_label_, sd.value.c_str());
         lv_color_t color = theme::color(theme::COLOR_TEXT);
-        if (sd.state == SdBackupState::NotDetected || sd.state == SdBackupState::Present) {
+        if (sd.state == SdBackupState::NotDetected || sd.state == SdBackupState::Present ||
+            sd.state == SdBackupState::SavedWithoutClock) {
             color = theme::color(theme::COLOR_MUTED);
         } else if (sd.state == SdBackupState::Error) {
             color = theme::color(theme::COLOR_NEGATIVE);
         }
-        lv_obj_set_style_text_color(stat_values_[STAT_SD_BACKUP], color, 0);
-    }
-    if (system_sd_caption_ != nullptr) {
-        lv_label_set_text(system_sd_caption_,
-                          sd.attention ? strings::SYSTEM_SD_HINT : strings::SYSTEM_SD_CAPTION);
+        lv_obj_set_style_text_color(system_sd_label_, color, 0);
     }
 }
 

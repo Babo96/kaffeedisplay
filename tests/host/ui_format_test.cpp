@@ -60,40 +60,36 @@ TEST_CASE("month navigation produces stable bounds") {
     CHECK(to - from <= 31 * 86400);
 }
 
-TEST_CASE("microSD backup status maps to calm German row states") {
+TEST_CASE("microSD backup status maps to a short German header state") {
     const Timestamp saved = 1'794'386'460;  // 2026-11-11 09:41 Europe/Berlin
 
-    // No card or mount failure: muted, with the actionable hint.
+    // No card or mount failure: short muted word.
     const ui::SdBackupStatus missing = ui::sd_backup_status(false, false, 0, false);
     CHECK(missing.state == ui::SdBackupState::NotDetected);
-    CHECK(missing.value == "nicht erkannt");
-    CHECK(missing.attention);
+    CHECK(missing.value == "fehlt");
 
     // A probe that lost the card wins over an older success or error.
-    const ui::SdBackupStatus gone = ui::sd_backup_status(false, true, saved, false);
-    CHECK(gone.state == ui::SdBackupState::NotDetected);
+    CHECK(ui::sd_backup_status(false, true, saved, false).state == ui::SdBackupState::NotDetected);
 
     // Card seen but nothing has succeeded yet.
     const ui::SdBackupStatus detected = ui::sd_backup_status(true, false, 0, false);
     CHECK(detected.state == ui::SdBackupState::Present);
-    CHECK(detected.value == "erkannt");
-    CHECK_FALSE(detected.attention);
+    CHECK(detected.value == "ok");
 
     // Failed write: short German state, never the raw English error text.
     const ui::SdBackupStatus failed =
         ui::sd_backup_status(true, false, saved, true /* has_error */);
     CHECK(failed.state == ui::SdBackupState::Error);
-    CHECK(failed.value == "Fehler beim Sichern");
-    CHECK(failed.attention);
+    CHECK(failed.value == "Fehler");
 
-    // Successful run: date + HH:MM, no seconds, like the clock row.
+    // Successful run: time only (no date, no seconds) so it fits the header.
     const ui::SdBackupStatus done = ui::sd_backup_status(true, true, saved, false);
     CHECK(done.state == ui::SdBackupState::Saved);
-    CHECK(done.value == ui::format_date(saved) + " " + ui::format_clock(saved));
-    CHECK(done.value == "11.11.2026 09:41");
-    CHECK_FALSE(done.attention);
+    CHECK(done.value == ui::format_clock(saved));
+    CHECK(done.value == "09:41");
+    CHECK(done.value.size() == 5);
 
-    // A success from a stale error string still shows the good run.
+    // A stale error string next to a successful run still shows the good run.
     CHECK(ui::sd_backup_status(true, true, saved, true).state == ui::SdBackupState::Saved);
 
     // Unset clock: "gesichert", never 1970 and never "--:--".

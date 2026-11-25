@@ -232,7 +232,6 @@ SdBackupStatus sd_backup_status(bool card_present, bool backup_ok, Timestamp las
     if (!card_present) {
         status.state = SdBackupState::NotDetected;
         status.value = strings::SYSTEM_SD_NOT_DETECTED;
-        status.attention = true;
         return status;
     }
     if (backup_ok) {
@@ -240,15 +239,16 @@ SdBackupStatus sd_backup_status(bool card_present, bool backup_ok, Timestamp las
             status.state = SdBackupState::SavedWithoutClock;
             status.value = strings::SYSTEM_SD_SAVED;
         } else {
+            // The header has no room for a date; the time alone keeps the chip
+            // short and still says when the last run finished.
             status.state = SdBackupState::Saved;
-            status.value = format_date(last_success) + " " + format_clock(last_success);
+            status.value = format_clock(last_success);
         }
         return status;
     }
     if (has_error) {
         status.state = SdBackupState::Error;
         status.value = strings::SYSTEM_SD_ERROR;
-        status.attention = true;
         return status;
     }
     status.state = SdBackupState::Present;
