@@ -212,7 +212,7 @@ export const de = {
   productName: "Bezeichnung",
   productCategory: "Kategorie",
   productPrice: "Preis in Euro",
-  productGuestPrice: "Gastpreis in Euro",
+  productGuestPrice: "Preis für Gäste",
   productGuestPriceHint: "Leer lassen: Gäste zahlen den normalen Preis.",
   productGuestPriceBadge: "Gastpreis",
   productGuestPriceInherit: "wie Mitglieder",

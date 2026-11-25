@@ -186,7 +186,7 @@ test("product CRUD sends a full ProductInput for reorder and archive", async ({ 
   await page.getByRole("dialog").getByRole("button", { name: "Endgültig löschen" }).click();
   await expect(page.getByText("Getränk gelöscht.")).toBeVisible();
 
-  const required = ["name", "category", "price_cents", "icon", "color", "sort", "active"];
+  const required = ["name", "category", "price_cents", "guest_price_cents", "icon", "color", "sort", "active"];
   for (const body of patches) {
     for (const key of required) expect(body).toHaveProperty(key);
   }
