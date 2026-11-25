@@ -70,6 +70,62 @@ void swipe_right(Harness& h) {
     advance(h, 8);
 }
 
+// Vertical swipes on page 1 step the member grid instead of flipping the page.
+void swipe_up(Harness& h, int from_y = 400, int to_y = 100, int x = 200) {
+    for (int y = from_y; y >= to_y; y -= 20) {
+        h.display.inject_pointer(x, y, true);
+        advance(h, 2);
+    }
+    h.display.inject_pointer(x, to_y, false);
+    advance(h, 8);
+}
+
+void swipe_down(Harness& h, int from_y = 100, int to_y = 400, int x = 200) {
+    for (int y = from_y; y <= to_y; y += 20) {
+        h.display.inject_pointer(x, y, true);
+        advance(h, 2);
+    }
+    h.display.inject_pointer(x, to_y, false);
+    advance(h, 8);
+}
+
+// A gesture that grows both axes at the same rate: the first sample past the
+// dead zone has equal deltas, so the horizontal axis wins the tie.
+void swipe_diagonal(Harness& h) {
+    for (int step = 0; step <= 10; ++step) {
+        h.display.inject_pointer(400 - step * 20, 400 - step * 20, true);
+        advance(h, 2);
+    }
+    h.display.inject_pointer(200, 200, false);
+    advance(h, 8);
+}
+
+// Six pixels per sample: a slow finger that never moves more than the dead zone
+// between two samples.
+void slow_swipe_up(Harness& h) {
+    for (int y = 400; y >= 260; y -= 6) {
+        h.display.inject_pointer(200, y, true);
+        advance(h, 1);
+    }
+    h.display.inject_pointer(200, 260, false);
+    advance(h, 8);
+}
+
+// Up past the step threshold, then back through the press point and down again:
+// the recogniser has to re-arm at the origin and step back.
+void swipe_up_then_down(Harness& h) {
+    for (int y = 300; y >= 180; y -= 20) {
+        h.display.inject_pointer(200, y, true);
+        advance(h, 2);
+    }
+    for (int y = 180; y <= 460; y += 20) {
+        h.display.inject_pointer(200, y, true);
+        advance(h, 2);
+    }
+    h.display.inject_pointer(200, 460, false);
+    advance(h, 8);
+}
+
 bool expect(bool condition, const char* message) {
     if (!condition) std::printf("click-test FAIL: %s\n", message);
     return condition;
@@ -209,6 +265,71 @@ bool run_click_test(FakeBackend& backend, kaffee::ui::UiApp& app, kaffee::ui::Ui
     swipe_right(h);
     ok = expect(control.page() == 0, "swipe right returns to booking") && ok;
 
+    // Vertical swipe pages the member grid and never flips the page (T-051).
+    // 30 members are three pages of 12; the seeded five fit on one.
+    control.debug_deselect();
+    backend.set_member_count(30);
+    app.refresh_data();
+    advance(h, 8);
+    const int purchases_before_paging = backend.count_events(kaffee::EventType::Purchase);
+    ok = expect(control.debug_book_page_index() == 0, "member grid starts on page 1") && ok;
+
+    swipe_up(h);
+    ok = expect(control.debug_book_page_index() == 1, "swipe up opens the second page") && ok;
+    ok = expect(control.page() == 0, "a vertical swipe does not flip the page") && ok;
+    swipe_up(h);
+    ok = expect(control.debug_book_page_index() == 2, "swipe up again opens the third page") &&
+         ok;
+    swipe_up(h);
+    ok = expect(control.debug_book_page_index() == 2, "swipe past the last page clamps") && ok;
+    ok = expect(backend.count_events(kaffee::EventType::Purchase) == purchases_before_paging,
+                "paging never books a drink") &&
+         ok;
+
+    swipe_down(h);
+    ok = expect(control.debug_book_page_index() == 1, "swipe down opens the previous page") && ok;
+    swipe_down(h);
+    swipe_down(h);
+    ok = expect(control.debug_book_page_index() == 0, "swipe down past the first page clamps") &&
+         ok;
+
+    // A drag shorter than the page step changes nothing and stays a tap - so it
+    // selects the member under the finger, and the grid has to be reopened.
+    swipe_up(h, 400, 340);
+    ok = expect(control.debug_book_page_index() == 0,
+                "a short vertical drag does not page the grid") &&
+         ok;
+    control.debug_deselect();
+    app.refresh_data();
+    advance(h, 8);
+
+    // A slow finger (6 px per sample, less than the 24 px dead zone) still
+    // accumulates and pages; the origin must not follow it sample by sample.
+    slow_swipe_up(h);
+    ok = expect(control.debug_book_page_index() == 1, "a slow vertical drag pages too") && ok;
+
+    // Up one page and back down through the press point: the recogniser re-arms
+    // at the origin and steps back, so the grid ends where it started.
+    const int page_before_reverse = control.debug_book_page_index();
+    swipe_up_then_down(h);
+    ok = expect(control.debug_book_page_index() == page_before_reverse,
+                "a reversed vertical drag ends where it started") &&
+         ok;
+
+    // A diagonal drag resolves to exactly one action: horizontal wins the tie,
+    // so the page flips and the member grid stays where it is.
+    const int page_before_diagonal = control.debug_book_page_index();
+    swipe_diagonal(h);
+    ok = expect(control.page() == 1, "a diagonal swipe flips the page") && ok;
+    ok = expect(control.debug_book_page_index() == page_before_diagonal,
+                "a diagonal swipe does not also page the member grid") &&
+         ok;
+    swipe_right(h);
+    ok = expect(control.page() == 0, "swipe right returns to the booking page") && ok;
+    ok = expect(backend.count_events(kaffee::EventType::Purchase) == purchases_before_paging,
+                "the paging gestures never book a drink") &&
+         ok;
+
     // The centre card inside the test pattern is decorative; the full-screen
     // overlay must receive the dismiss click.
     app.show_test_pattern();
@@ -234,16 +355,17 @@ bool run_click_test(FakeBackend& backend, kaffee::ui::UiApp& app, kaffee::ui::Ui
     h.tick += 61'000;
     advance(h, 8);
     ok = expect(control.standby_active(), "coffee standby appears after dim timeout") && ok;
-    const int steam_before = control.standby_steam_y();
-    advance(h, 12);
-    ok = expect(control.standby_steam_y() != steam_before, "steam actually moves") && ok;
-
     // Sample a complete 9.6s animation cycle: all three strokes must become
-    // invisible, become clearly visible, and take turns at different phases.
-    // This catches static steam or a timer that only changes line positions.
+    // invisible, become clearly visible, move upward, and take turns at
+    // different phases. This catches static steam or a timer that only changes
+    // line positions. Sampling a whole cycle instead of a fixed two frames also
+    // keeps the check independent of the phase the test happens to land in:
+    // the strands hold still for the 52 frames they are invisible.
     int min_opa[3] = {255, 255, 255};
     int max_opa[3] = {0, 0, 0};
     bool staggered = false;
+    int steam_min_y = control.standby_steam_y();
+    int steam_max_y = steam_min_y;
     for (int frame = 0; frame < 640; ++frame) {
         advance(h, 1);
         int opas[3] = {};
@@ -253,7 +375,11 @@ bool run_click_test(FakeBackend& backend, kaffee::ui::UiApp& app, kaffee::ui::Ui
             if (opas[i] > max_opa[i]) max_opa[i] = opas[i];
         }
         if (opas[0] != opas[1] && opas[1] != opas[2]) staggered = true;
+        const int steam_y = control.standby_steam_y();
+        if (steam_y < steam_min_y) steam_min_y = steam_y;
+        if (steam_y > steam_max_y) steam_max_y = steam_y;
     }
+    ok = expect(steam_max_y > steam_min_y, "steam actually moves") && ok;
     for (int i = 0; i < 3; ++i) {
         ok = expect(min_opa[i] == 0 && max_opa[i] >= 180,
                     "each steam strand alternately fades out and becomes visible") &&
