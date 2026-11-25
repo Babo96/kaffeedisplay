@@ -278,8 +278,7 @@ bool run_click_test(FakeBackend& backend, kaffee::ui::UiApp& app, kaffee::ui::Ui
     ok = expect(control.debug_book_page_index() == 1, "swipe up opens the second page") && ok;
     ok = expect(control.page() == 0, "a vertical swipe does not flip the page") && ok;
     swipe_up(h);
-    ok = expect(control.debug_book_page_index() == 2, "swipe up again opens the third page") &&
-         ok;
+    ok = expect(control.debug_book_page_index() == 2, "swipe up again opens the third page") && ok;
     swipe_up(h);
     ok = expect(control.debug_book_page_index() == 2, "swipe past the last page clamps") && ok;
     ok = expect(backend.count_events(kaffee::EventType::Purchase) == purchases_before_paging,
@@ -290,8 +289,8 @@ bool run_click_test(FakeBackend& backend, kaffee::ui::UiApp& app, kaffee::ui::Ui
     ok = expect(control.debug_book_page_index() == 1, "swipe down opens the previous page") && ok;
     swipe_down(h);
     swipe_down(h);
-    ok = expect(control.debug_book_page_index() == 0, "swipe down past the first page clamps") &&
-         ok;
+    ok =
+        expect(control.debug_book_page_index() == 0, "swipe down past the first page clamps") && ok;
 
     // A drag shorter than the page step changes nothing and stays a tap - so it
     // selects the member under the finger, and the grid has to be reopened.
