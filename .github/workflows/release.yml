@@ -88,6 +88,7 @@ jobs:
       - name: Build firmware
         run: |
           docker run --rm \
+            -e PROJECT_VER="${TAG}" \
             -v "$PWD/firmware:/project" \
             -w /project \
             "$IDF_IMAGE" \
@@ -103,11 +104,32 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          docker run --rm \
+          info="$(docker run --rm \
             -v "$PWD/firmware:/project" \
             -w /project \
             "$IDF_IMAGE" \
-            bash -lc '. "$IDF_PATH/export.sh" && esptool.py --chip esp32s3 image_info build/kaffeekasse.bin'
+            bash -lc '. "$IDF_PATH/export.sh" && esptool.py --chip esp32s3 image_info build/kaffeekasse.bin')"
+          echo "$info"
+          if ! grep -qE "^(Checksum|Validation Hash): .*valid" <<<"$info"; then
+            echo "::error::app image failed esptool validation"
+            exit 1
+          fi
+          # The image header version printed above is the esp_image format
+          # version, not the app version. The release version is the string in
+          # the app description, which /health reports.
+          python3 - "${TAG}" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          tag = sys.argv[1]
+          described = json.loads(Path("firmware/build/project_description.json").read_text())["project_version"]
+          if described != tag:
+              raise SystemExit(f"project version {described!r} does not match the release tag {tag!r}")
+          if tag.encode() not in Path("firmware/build/kaffeekasse.bin").read_bytes():
+              raise SystemExit(f"release tag {tag!r} is not embedded in the app image")
+          print(f"app version ok: {tag}")
+          PY
           python3 - <<'PY'
           from pathlib import Path
 

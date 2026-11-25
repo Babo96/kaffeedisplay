@@ -110,6 +110,10 @@ QIO, 80 MHz). The merged image ends before `0x620000`, so the `storage`
 partition with the ledger is not touched: flashing a release keeps users,
 products and bookings. Use `firmware.bin` instead when updating over OTA from
 the admin UI.
+
+The release build stamps the tag as `PROJECT_VER`, so `GET /health` and the
+admin UI report the release version (`v1.0.0`) instead of the ESP-IDF default
+`1`. The workflow refuses to upload an app image whose version is not the tag.
 - `make hil` runs the hardware smoke test when a board is at `/dev/ttyUSB0`;
   see `docs/testing.md`.
 
