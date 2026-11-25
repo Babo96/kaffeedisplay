@@ -1017,8 +1017,7 @@ LongTermStats Ledger::long_term_stats() const {
         } else if (e.type == EventType::Void) {
             const std::optional<Event> original = find_event(e.reverses);
             if (!original) continue;
-            if (original->type == EventType::Purchase ||
-                original->type == EventType::GuestSale) {
+            if (original->type == EventType::Purchase || original->type == EventType::GuestSale) {
                 apply(*original, -1);
             }
         }

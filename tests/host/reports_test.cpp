@@ -863,4 +863,3 @@ TEST_CASE("long-term months group by Europe/Berlin and net voids to the original
     CHECK(months[1].guest_items == 1);
     CHECK(months[1].guest_spend_cents == 50);
 }
-

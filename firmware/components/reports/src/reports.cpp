@@ -1311,8 +1311,7 @@ std::vector<LongTermMonth> long_term_months(const Ledger& ledger) {
         } else if (e.type == EventType::Void) {
             const auto original = ledger.find_event(e.reverses);
             if (!original) continue;
-            if (original->type == EventType::Purchase ||
-                original->type == EventType::GuestSale) {
+            if (original->type == EventType::Purchase || original->type == EventType::GuestSale) {
                 apply(*original, -1);
             }
         }
