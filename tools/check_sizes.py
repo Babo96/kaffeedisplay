@@ -9,6 +9,9 @@ from pathlib import Path
 
 MAX_WEB_GZIP = 400 * 1024
 MAX_FIRMWARE = 3 * 1024 * 1024
+# `partitions.csv`: storage starts at 0x620000. A merged factory image is
+# flashed at 0x0, so it must end before this offset to leave the ledger alone.
+STORAGE_OFFSET = 0x620000
 
 failed = False
 
@@ -41,7 +44,14 @@ else:
 bins = sorted(Path("firmware/build").glob("*.bin")) if Path("firmware/build").exists() else []
 if bins:
     for binary in bins:
-        check(binary.name, binary.stat().st_size, MAX_FIRMWARE)
+        if binary.name == "merged-binary.bin":
+            # A factory image bundles bootloader, partition table, OTA data and
+            # app, so the app budget does not apply. It is flashed at 0x0 and
+            # must stay clear of the storage partition, or flashing a release
+            # would cover the ledger.
+            check("merged-binary.bin (before storage 0x620000)", binary.stat().st_size, STORAGE_OFFSET)
+        else:
+            check(binary.name, binary.stat().st_size, MAX_FIRMWARE)
 else:
     print("firmware: not built, skipped")
 
