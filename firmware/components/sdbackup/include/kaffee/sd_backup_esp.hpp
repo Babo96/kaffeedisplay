@@ -22,7 +22,8 @@ class NvsSdStateStore final : public IStateStore {
 std::unique_ptr<IVolume> make_sd_volume();
 
 // Starts the low-priority backup task. Call after the boot health check has
-// confirmed the OTA image, so a slow or missing card cannot delay boot.
-bool start_sd_backup_task(KaffeeService& service);
+// confirmed the OTA image, so a slow or missing card cannot delay boot. The
+// monitor is owned by main and also read by PlatformAdapter::stats().
+bool start_sd_backup_task(KaffeeService& service, SdStatusMonitor& status);
 
 }  // namespace kaffee::sd

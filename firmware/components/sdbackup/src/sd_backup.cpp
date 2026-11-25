@@ -1,6 +1,7 @@
 #include "kaffee/sd_backup.hpp"
 
 #include <string>
+#include <utility>
 
 namespace kaffee::sd {
 namespace {
@@ -39,6 +40,32 @@ reports::Period previous_month(Timestamp now) {
     return reports::month(reports::month(now).from - 1);
 }
 
+SdStatus SdStatusMonitor::snapshot() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return status_;
+}
+
+void SdStatusMonitor::set_last_success(Timestamp ts) {
+    if (ts <= kNoClockSuccess) return;
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (ts > status_.last_success) status_.last_success = ts;
+}
+
+void SdStatusMonitor::record_success(Timestamp now) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    status_.card_present = true;
+    status_.backup_ok = true;
+    if (now > kNoClockSuccess) status_.last_success = now;
+    status_.last_error.clear();
+}
+
+void SdStatusMonitor::record_error(std::string message, bool card_present) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    status_.card_present = card_present;
+    status_.backup_ok = false;
+    status_.last_error = std::move(message);
+}
+
 std::string db_path() {
     return kDbFileName;
 }
@@ -54,7 +81,8 @@ SdPlan plan_for(Timestamp now, const SdRunState& state, TimeSource source, bool 
 
     // A completely unset clock (now == 0) has no schedule. The DB backup is
     // clock-independent, so write it once; CSV files are never written for
-    // 1970. The sentinel 1 stored by execute_plan keeps it from repeating.
+    // 1970. The kNoClockSuccess marker stored by execute_plan keeps it from
+    // repeating.
     if (now <= 0) {
         plan.write_db = state.last_db_success == 0;
         return plan;
@@ -125,7 +153,7 @@ Result<SdRunReport> execute_plan(Timestamp now, const SdPlan& plan, IVolume& vol
     // A partial run (previous month written, current month failed) is retried
     // from scratch on the next poll and overwrites the same files.
     if (csv_any) {
-        state.last_csv_success = now <= 0 ? 1 : now;
+        state.last_csv_success = now <= 0 ? kNoClockSuccess : now;
         auto saved = state_store.save_last_success(state);
         if (!saved) return Result<SdRunReport>::fail(saved.error->code, saved.error->message);
     }
@@ -134,7 +162,7 @@ Result<SdRunReport> execute_plan(Timestamp now, const SdPlan& plan, IVolume& vol
         auto written = volume.write_file(db_path(), data.db_json);
         if (!written) return Result<SdRunReport>::fail(written.error->code, written.error->message);
         report.db_written = true;
-        state.last_db_success = now <= 0 ? 1 : now;
+        state.last_db_success = now <= 0 ? kNoClockSuccess : now;
         auto saved = state_store.save_last_success(state);
         if (!saved) return Result<SdRunReport>::fail(saved.error->code, saved.error->message);
     }

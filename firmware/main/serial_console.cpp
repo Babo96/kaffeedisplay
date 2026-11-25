@@ -300,6 +300,7 @@ class SerialConsole {
         const char* sta = network.sta_connected ? "on" : "off";
         const char* firmware =
             stats.firmware_version.empty() ? "unknown" : stats.firmware_version.c_str();
+        const char* sd_error = stats.sd_last_error.empty() ? "-" : stats.sd_last_error.c_str();
         const uint32_t psram_total =
             static_cast<uint32_t>(heap_caps_get_total_size(MALLOC_CAP_SPIRAM));
         const uint32_t internal_free =
@@ -323,7 +324,8 @@ class SerialConsole {
             "uptime_s=%llu heap_free=%u heap_min=%u heap_internal_free=%u "
             "heap_internal_min=%u heap_internal_largest=%u psram_free=%u psram_total=%u "
             "lvgl_stack_free=%u httpd_stack_free=%u storage_used=%llu storage_total=%llu "
-            "storage_mounted=%d firmware=%s drinks_today=%d",
+            "storage_mounted=%d firmware=%s drinks_today=%d "
+            "sd_present=%d sd_ok=%d sd_last_success=%lld sd_error=%s",
             static_cast<unsigned long long>(seq), static_cast<unsigned>(users.size()), active_users,
             static_cast<unsigned>(products.size()), active_products,
             static_cast<long long>(stats.time.now), time_source_name(stats.time),
@@ -334,7 +336,9 @@ class SerialConsole {
             static_cast<unsigned>(psram_total), lvgl_stack_free, httpd_stack_free,
             static_cast<unsigned long long>(stats.storage.used_bytes),
             static_cast<unsigned long long>(stats.storage.total_bytes),
-            stats.storage.mounted ? 1 : 0, firmware, stats.drinks_today);
+            stats.storage.mounted ? 1 : 0, firmware, stats.drinks_today,
+            stats.sd_card_present ? 1 : 0, stats.sd_backup_ok ? 1 : 0,
+            static_cast<long long>(stats.sd_last_success), sd_error);
     }
 
     void cmd_ap(const std::vector<std::string>& tokens) {

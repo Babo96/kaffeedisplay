@@ -47,6 +47,13 @@ struct SystemStats {
     NetworkStatus network;
     TimeInfo time;
     Timestamp last_backup_at = 0;
+    // microSD backup status from the sdbackup module's thread-safe snapshot.
+    // Defaults mean "no card detected / no successful run yet". Additive and
+    // excluded from /device and OpenAPI in this PR.
+    bool sd_card_present = false;
+    bool sd_backup_ok = false;
+    Timestamp sd_last_success = 0;
+    std::string sd_last_error;
     int drinks_today = 0;
 };
 

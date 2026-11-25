@@ -89,6 +89,23 @@ under the service mutex). Secrets are excluded by the existing
   `SystemStats`, `/device` and the OpenAPI document stay unchanged; a UI/status
   surface would be a separate ADR.
 
+### Status to the device UI (scope addition)
+
+- `SystemStats` gains four additive fields with safe defaults:
+  `sd_card_present`, `sd_backup_ok`, `sd_last_success` and `sd_last_error`.
+  This is an additive change to the frozen header; `/device`, the OpenAPI
+  document and the web admin are deliberately **not** changed.
+- `main` owns one `SdStatusMonitor`. The backup task writes it; the
+  `PlatformAdapter` takes a reference and copies its `snapshot()` into
+  `SystemStats::stats()`. This keeps the dependency direction `main → sdbackup`
+  and avoids a `sdbackup → service` cycle or a new virtual on `IPlatform`.
+- `SdStatusMonitor` guards its state with a mutex because the UI/LVGL task and
+  the serial console read it while the backup task writes it. `snapshot()`
+  returns a value copy; no SD I/O happens in the render or stats path.
+- Defaults mean "no card detected / no successful run yet". The backup task
+  updates the monitor only after a successful write or a failed attempt, so the
+  stale case is "last observed state", not a per-frame probe.
+
 ## Consequences
 
 - The admin keeps a current portable backup without logging in, and the

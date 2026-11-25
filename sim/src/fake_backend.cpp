@@ -197,6 +197,9 @@ kaffee::SystemStats FakeBackend::stats() const {
     stats.network = network_status();
     stats.time = time_info();
     stats.last_backup_at = now_ - 86400 * 2;
+    stats.sd_card_present = true;
+    stats.sd_backup_ok = true;
+    stats.sd_last_success = now_ - 1800;
     stats.drinks_today = 7;
     return stats;
 }

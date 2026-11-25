@@ -53,6 +53,13 @@ restoring from the card.
 - The task starts after the boot health check/OTA confirmation, priority 2,
   5120-byte internal stack. Mount-failure logs are rate-limited to once per
   15 minutes.
+- **Status for page 3:** `SystemStats` gains additive `sd_card_present`,
+  `sd_backup_ok`, `sd_last_success` and `sd_last_error` (defaults = not
+  detected). `main` owns a `SdStatusMonitor`; the backup task writes it and
+  `PlatformAdapter::stats()` copies `snapshot()` under its mutex. No SD I/O in
+  the render/stats path. Serial `status` prints the new fields; the sim fake
+  reports a healthy card. `/device`, OpenAPI and web are untouched — page 3
+  layout/strings belong to the designer.
 - **Size budget:** the base image was 3,097,840 B with 47,888 B free. The SD
   stack (FatFs, SDMMC/SPI, sdbackup) adds ~110 KB. The firmware UI only uses
   object/button/label/line/image/qrcode/tileview and initialises no LVGL theme,
@@ -64,7 +71,8 @@ restoring from the card.
 
 - `make test-host`: 178 test cases / 27,740 assertions pass, including the new
   plan truth table, month-boundary order, failed-write retry, mount failure,
-  missing card, untrusted clock and the DB export equivalence/no-secrets test.
+  missing card, untrusted clock, the status-monitor snapshot and the DB export
+  equivalence/no-secrets test.
 - `npm --prefix web test`: 40 tests pass; `npm --prefix web run typecheck`:
   clean.
 - `PATH=/tmp/cfbin:$PATH make fmt-check`: clean with clang-format 18.

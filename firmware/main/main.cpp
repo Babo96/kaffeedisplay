@@ -194,7 +194,8 @@ extern "C" void app_main(void) {
         return loaded ? *loaded.value : kaffee::Settings{};
     });
 
-    static kaffee::PlatformAdapter platform(*display, network);
+    static kaffee::sd::SdStatusMonitor sd_status;
+    static kaffee::PlatformAdapter platform(*display, network, sd_status);
 
     auto created_service = kaffee::KaffeeService::create(event_store, settings_store, platform);
     if (!created_service) {
@@ -348,7 +349,7 @@ extern "C" void app_main(void) {
         esp_ota_mark_app_valid_cancel_rollback();
         // Start backup only after the OTA image is confirmed: a slow or
         // missing card must never sit in the rollback window.
-        if (!kaffee::sd::start_sd_backup_task(*service)) {
+        if (!kaffee::sd::start_sd_backup_task(*service, sd_status)) {
             ESP_LOGW(kTag, "microSD backup task not started");
         }
     } else {

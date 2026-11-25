@@ -6,6 +6,7 @@
 #include "esp_app_desc.h"
 #include "esp_mac.h"
 #include "esp_random.h"
+#include "kaffee/sd_backup.hpp"
 
 namespace kaffee {
 namespace {
@@ -25,8 +26,9 @@ std::string mac_string() {
 
 }  // namespace
 
-PlatformAdapter::PlatformAdapter(EspDisplay& display, NetworkManager& network)
-    : display_(display), network_(network) {}
+PlatformAdapter::PlatformAdapter(EspDisplay& display, NetworkManager& network,
+                                 sd::SdStatusMonitor& sd_status)
+    : display_(display), network_(network), sd_status_(sd_status) {}
 
 SystemStats PlatformAdapter::stats() const {
     const BoardStats board = display_.stats();
@@ -40,6 +42,11 @@ SystemStats PlatformAdapter::stats() const {
     stats.network = network_.status();
     stats.time = network_.time_info();
     stats.mac = mac_string();
+    const sd::SdStatus sd = sd_status_.snapshot();
+    stats.sd_card_present = sd.card_present;
+    stats.sd_backup_ok = sd.backup_ok;
+    stats.sd_last_success = sd.last_success;
+    stats.sd_last_error = sd.last_error;
     if (const esp_app_desc_t* app = esp_app_get_description(); app != nullptr) {
         stats.firmware_version = app->version;
         stats.build_date = app->date;

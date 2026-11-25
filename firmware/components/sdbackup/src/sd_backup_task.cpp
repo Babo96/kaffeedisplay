@@ -30,6 +30,7 @@ struct TaskContext {
     KaffeeService* service = nullptr;
     std::unique_ptr<IVolume> volume;
     std::unique_ptr<IStateStore> state_store;
+    SdStatusMonitor* status = nullptr;
 };
 
 bool starts_with(const std::string& text, const char* prefix) {
@@ -51,6 +52,10 @@ void run_once(TaskContext& context, int64_t& last_mount_log_us) {
         ESP_LOGW(kTag, "cannot load backup state: %s", loaded.error->message.c_str());
     } else {
         state = *loaded.value;
+        const Timestamp latest = state.last_db_success > state.last_csv_success
+                                     ? state.last_db_success
+                                     : state.last_csv_success;
+        context.status->set_last_success(latest);
     }
 
     const SdPlan plan = plan_for(time.now, state, time.source);
@@ -69,6 +74,7 @@ void run_once(TaskContext& context, int64_t& last_mount_log_us) {
 
     auto ran = execute_plan(time.now, plan, *context.volume, *context.state_store, state, data);
     if (ran) {
+        context.status->record_success(time.now);
         log_run(plan, *ran.value);
         return;
     }
@@ -76,6 +82,7 @@ void run_once(TaskContext& context, int64_t& last_mount_log_us) {
     const std::string& message = ran.error->message;
     const bool mount_problem =
         starts_with(message, "mount") || starts_with(message, "spi_bus_initialize");
+    context.status->record_error(message, !mount_problem);
     const int64_t now_us = esp_timer_get_time();
     if (mount_problem) {
         if (now_us - last_mount_log_us >= kMountLogIntervalUs) {
@@ -98,11 +105,12 @@ void task_entry(void* arg) {
 
 }  // namespace
 
-bool start_sd_backup_task(KaffeeService& service) {
+bool start_sd_backup_task(KaffeeService& service, SdStatusMonitor& status) {
     auto* context = new TaskContext;
     context->service = &service;
     context->volume = make_sd_volume();
     context->state_store = std::make_unique<NvsSdStateStore>();
+    context->status = &status;
 
     if (xTaskCreate(&task_entry, "sd_backup", kTaskStackBytes, context, kTaskPriority, nullptr) !=
         pdPASS) {

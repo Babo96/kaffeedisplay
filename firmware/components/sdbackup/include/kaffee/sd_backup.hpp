@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <string_view>
 
@@ -30,6 +31,33 @@ inline constexpr const char* kDbFileName = "kaffeekasse-db.json";
 struct SdRunState {
     Timestamp last_db_success = 0;
     Timestamp last_csv_success = 0;
+};
+
+// Stored instead of `now` when a clock-independent DB run succeeds while the
+// wall clock is unset. It is never shown as a real timestamp.
+inline constexpr Timestamp kNoClockSuccess = 1;
+
+// Thread-safe snapshot consumed by `PlatformAdapter::stats()`. The UI/LVGL
+// task and the serial console both read it, while the backup task writes it.
+// Defaults mean "no card detected / no successful run yet".
+struct SdStatus {
+    bool card_present = false;
+    bool backup_ok = false;
+    Timestamp last_success = 0;
+    std::string last_error;
+};
+
+class SdStatusMonitor {
+  public:
+    SdStatus snapshot() const;
+    // Only advances; ignores 0 and the unset-clock sentinel.
+    void set_last_success(Timestamp ts);
+    void record_success(Timestamp now);
+    void record_error(std::string message, bool card_present);
+
+  private:
+    mutable std::mutex mutex_;
+    SdStatus status_;
 };
 
 struct SdPlan {

@@ -10,6 +10,10 @@
 
 namespace kaffee {
 
+namespace sd {
+class SdStatusMonitor;
+}
+
 // Firmware IPlatform implementation. It joins the board display and the network
 // manager into the single platform facade the service and API expect.
 //
@@ -17,7 +21,7 @@ namespace kaffee {
 // from the HTTP task because EspDisplay serialises them through esp_lvgl_port.
 class PlatformAdapter final : public IPlatform {
   public:
-    PlatformAdapter(EspDisplay& display, NetworkManager& network);
+    PlatformAdapter(EspDisplay& display, NetworkManager& network, sd::SdStatusMonitor& sd_status);
 
     SystemStats stats() const override;
     TimeInfo time_info() const override;
@@ -51,6 +55,7 @@ class PlatformAdapter final : public IPlatform {
   private:
     EspDisplay& display_;
     NetworkManager& network_;
+    sd::SdStatusMonitor& sd_status_;
     std::function<void()> ap_stopped_callback_;
     std::atomic<bool> ap_active_{false};
 };

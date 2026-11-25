@@ -347,6 +347,38 @@ TEST_CASE("sd execute: month boundary writes previous, current, then DB") {
     CHECK(volume.files["kaffeekasse-db.json"] == "db-payload");
 }
 
+TEST_CASE("sd status monitor defaults to not detected and publishes copies") {
+    sd::SdStatusMonitor monitor;
+    sd::SdStatus status = monitor.snapshot();
+    CHECK_FALSE(status.card_present);
+    CHECK_FALSE(status.backup_ok);
+    CHECK(status.last_success == 0);
+    CHECK(status.last_error.empty());
+
+    monitor.set_last_success(sd::kNoClockSuccess);
+    CHECK(monitor.snapshot().last_success == 0);
+    monitor.set_last_success(1234);
+    CHECK(monitor.snapshot().last_success == 1234);
+
+    monitor.record_error("mount: no compatible card", false);
+    status = monitor.snapshot();
+    CHECK_FALSE(status.card_present);
+    CHECK_FALSE(status.backup_ok);
+    CHECK(status.last_success == 1234);
+    CHECK(status.last_error == "mount: no compatible card");
+
+    monitor.record_success(5678);
+    status = monitor.snapshot();
+    CHECK(status.card_present);
+    CHECK(status.backup_ok);
+    CHECK(status.last_success == 5678);
+    CHECK(status.last_error.empty());
+
+    // A clock-independent DB run must not replace a real timestamp with 1970.
+    monitor.record_success(0);
+    CHECK(monitor.snapshot().last_success == 5678);
+}
+
 TEST_CASE("sd DB backup matches export_backup modulo created_at and contains no secrets") {
     TempDir dir;
     FileEventStore store((dir.path / "events").string());
