@@ -12,6 +12,7 @@ export function toProductInput(
     name: product.name,
     category: product.category,
     price_cents: product.price_cents,
+    guest_price_cents: product.guest_price_cents ?? null,
     icon: product.icon,
     color: product.color,
     sort: product.sort,

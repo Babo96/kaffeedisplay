@@ -29,6 +29,8 @@ export interface Product {
   icon: string;
   color: string;
   price_cents: Cents;
+  /** Guest price when set; `null` means guests pay `price_cents`. */
+  guest_price_cents: Cents | null;
   sort: number;
   active: boolean;
   created_at: number;
@@ -41,6 +43,7 @@ export interface ProductInput {
   icon?: string;
   color?: string;
   price_cents: Cents;
+  guest_price_cents?: Cents | null;
   sort?: number;
   active?: boolean;
 }
@@ -86,6 +89,7 @@ export interface Event {
   counted_cents?: Cents;
   expected_cents?: Cents;
   unit_amount_cents?: Cents;
+  guest_price_cents?: Cents;
   amount_cents?: Cents;
   payment?: "balance" | "cash" | "";
   note?: string;

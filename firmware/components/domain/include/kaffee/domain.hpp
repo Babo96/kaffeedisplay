@@ -16,6 +16,15 @@ using Timestamp = int64_t;  // Unix seconds, UTC
 
 inline constexpr int kMaxUserAvatarId = 30;  // 0 = initials only; 1..30 = fixed presets
 
+// Upper bound shared by the domain and the REST layer for a single unit price.
+inline constexpr Cents kMaxPriceCents = 100000;  // 1000.00 EUR
+
+// Sentinel for "no separate guest price": the guest pays the member price.
+// Prices themselves are never negative (0 is a valid, free price), so this
+// mirrors the `avatar_id = -1` convention of the user API. It is omitted from
+// the event JSON when unset, which keeps the hashes of older journals valid.
+inline constexpr Cents kNoGuestPrice = -1;
+
 enum class TimeSource { Synced, Restored, Unset };
 enum class EventType {
     Unknown,
@@ -79,6 +88,9 @@ struct Product {
     std::string icon;      // icon key understood by the UI
     std::string color;     // UI accent colour
     Cents price_cents = 0;
+    // Optional separate price for guest sales. kNoGuestPrice (-1) means the
+    // guest pays `price_cents`; any value >= 0 is charged to guests instead.
+    Cents guest_price_cents = kNoGuestPrice;
     int sort = 0;
     bool active = true;
     Timestamp created_at = 0;
@@ -130,6 +142,11 @@ struct Event {
     // Unit price for purchases / product events. `amount_cents` is the full
     // financial delta and is authoritative for balances.
     Cents unit_amount_cents = 0;
+
+    // Product's optional guest price snapshot for product events and guest
+    // sales. kNoGuestPrice when the product inherited the member price; the
+    // amount actually charged is always `unit_amount_cents`/`amount_cents`.
+    Cents guest_price_cents = kNoGuestPrice;
 
     // Financial delta: purchase/expense negative, topup/guest sale positive,
     // adjustment either, void the exact opposite of the original.
@@ -228,11 +245,12 @@ class Ledger {
 
     Result<Event> create_product(std::string name, std::string category, std::string icon,
                                  std::string color, Cents price_cents, int sort,
-                                 std::string request_id, Timestamp ts, TimeSource source);
+                                 std::string request_id, Timestamp ts, TimeSource source,
+                                 Cents guest_price_cents = kNoGuestPrice);
     Result<Event> update_product(std::string product_id, std::string name, std::string category,
                                  std::string icon, std::string color, Cents price_cents, int sort,
                                  bool active, std::string request_id, Timestamp ts,
-                                 TimeSource source);
+                                 TimeSource source, Cents guest_price_cents = kNoGuestPrice);
     Result<Event> archive_product(std::string product_id, std::string request_id, Timestamp ts,
                                   TimeSource source);
     Result<Event> delete_product(std::string product_id, std::string request_id, Timestamp ts,

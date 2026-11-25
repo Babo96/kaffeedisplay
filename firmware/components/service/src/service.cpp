@@ -234,12 +234,13 @@ class KaffeeServiceImpl final : public KaffeeService {
     Result<Event> archive_user(const std::string& user_id, const std::string& request_id) override;
     Result<Event> create_product(const std::string& name, const std::string& category,
                                  const std::string& icon, const std::string& color,
-                                 Cents price_cents, int sort,
-                                 const std::string& request_id) override;
+                                 Cents price_cents, int sort, const std::string& request_id,
+                                 Cents guest_price_cents) override;
     Result<Event> update_product(const std::string& product_id, const std::string& name,
                                  const std::string& category, const std::string& icon,
                                  const std::string& color, Cents price_cents, int sort, bool active,
-                                 const std::string& request_id) override;
+                                 const std::string& request_id,
+                                 Cents guest_price_cents) override;
     Result<Event> archive_product(const std::string& product_id,
                                   const std::string& request_id) override;
     Result<Event> delete_product(const std::string& product_id,
@@ -746,12 +747,13 @@ Result<Event> KaffeeServiceImpl::create_product(const std::string& name,
                                                 const std::string& category,
                                                 const std::string& icon, const std::string& color,
                                                 Cents price_cents, int sort,
-                                                const std::string& request_id) {
+                                                const std::string& request_id,
+                                                Cents guest_price_cents) {
     return mutate([&]() -> Result<Event> {
         if (auto existing = existing_request_locked(request_id))
             return Result<Event>::ok(*existing);
         return ledger_.create_product(name, category, icon, color, price_cents, sort, request_id,
-                                      now(), time_source());
+                                      now(), time_source(), guest_price_cents);
     });
 }
 
@@ -760,12 +762,13 @@ Result<Event> KaffeeServiceImpl::update_product(const std::string& product_id,
                                                 const std::string& category,
                                                 const std::string& icon, const std::string& color,
                                                 Cents price_cents, int sort, bool active,
-                                                const std::string& request_id) {
+                                                const std::string& request_id,
+                                                Cents guest_price_cents) {
     return mutate([&]() -> Result<Event> {
         if (auto existing = existing_request_locked(request_id))
             return Result<Event>::ok(*existing);
         return ledger_.update_product(product_id, name, category, icon, color, price_cents, sort,
-                                      active, request_id, now(), time_source());
+                                      active, request_id, now(), time_source(), guest_price_cents);
     });
 }
 

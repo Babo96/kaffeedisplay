@@ -489,6 +489,7 @@ struct ProductInput {
     std::string icon;
     std::string color;
     Cents price_cents = 0;
+    Cents guest_price_cents = kNoGuestPrice;
     int sort = 0;
     bool active = true;
 };
@@ -508,9 +509,25 @@ Result<ProductInput> parse_product_input(const json& body, const Product* base) 
     Result<std::string> color = get_string(body, "color", false, 7);
     if (!color)
         return Result<ProductInput>::fail(result_error(color).code, result_error(color).message);
-    Result<Cents> price = get_cents(body, "price_cents", base == nullptr, 0, 100000);
+    Result<Cents> price = get_cents(body, "price_cents", base == nullptr, 0, kMaxPriceCents);
     if (!price)
         return Result<ProductInput>::fail(result_error(price).code, result_error(price).message);
+    // Guest price: absent keeps the current value (or "inherit" on create),
+    // explicit null clears it, a number must be a valid non-negative price.
+    Cents guest_price_cents = base ? base->guest_price_cents : kNoGuestPrice;
+    if (body.contains("guest_price_cents")) {
+        if (body["guest_price_cents"].is_null()) {
+            guest_price_cents = kNoGuestPrice;
+        } else {
+            Result<Cents> guest =
+                get_cents(body, "guest_price_cents", false, 0, kMaxPriceCents);
+            if (!guest) {
+                return Result<ProductInput>::fail(result_error(guest).code,
+                                                  result_error(guest).message);
+            }
+            guest_price_cents = *guest.value;
+        }
+    }
     Result<Cents> sort = get_cents(body, "sort", false, -100000, 100000);
     if (!sort)
         return Result<ProductInput>::fail(result_error(sort).code, result_error(sort).message);
@@ -525,6 +542,7 @@ Result<ProductInput> parse_product_input(const json& body, const Product* base) 
     input.color = base ? base->color : "#8B5E3C";
     input.sort = base ? base->sort : 0;
     input.price_cents = base ? base->price_cents : 0;
+    input.guest_price_cents = guest_price_cents;
     input.active = *active.value;
 
     if (!name.value->empty()) input.name = trim(*name.value);
@@ -554,7 +572,8 @@ esp_err_t handle_products_create(RequestContext& ctx) {
 
     Result<Event> event = ctx.server.service().create_product(
         input.value->name, input.value->category, input.value->icon, input.value->color,
-        input.value->price_cents, input.value->sort, ctx.request_id);
+        input.value->price_cents, input.value->sort, ctx.request_id,
+        input.value->guest_price_cents);
     if (!event) return send_service_error(ctx.req, result_error(event));
     auto product = ctx.server.service().find_product(event.value->product_id);
     if (!product) return send_error(ctx.req, 500, "internal_error", "Produkt nicht gefunden");
@@ -574,7 +593,8 @@ esp_err_t handle_products_update(RequestContext& ctx) {
 
     Result<Event> event = service.update_product(
         id, input.value->name, input.value->category, input.value->icon, input.value->color,
-        input.value->price_cents, input.value->sort, input.value->active, ctx.request_id);
+        input.value->price_cents, input.value->sort, input.value->active, ctx.request_id,
+        input.value->guest_price_cents);
     if (!event) return send_service_error(ctx.req, result_error(event));
     auto product = service.find_product(id);
     if (!product) return send_error(ctx.req, 404, "not_found", "Produkt nicht gefunden");

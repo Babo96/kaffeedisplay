@@ -359,3 +359,111 @@ TEST_CASE("legacy user events keep their canonical hashes and JSON defaults") {
     CHECK(Ledger::make_event_hash(restored) == event.hash);
     CHECK(user_from_json(user_to_json(*f.ledger.find_user(user_id))).avatar_id == 0);
 }
+
+TEST_CASE("guest price is separate from the member price") {
+    Fixture f;
+    const auto source = TimeSource::Synced;
+    const auto product =
+        f.must(f.ledger.create_product("Kaffee", "Kaffee", "cup", "#D4A373", 50, 0, "", f.now,
+                                       source, 80))
+            .product_id;
+    REQUIRE(f.ledger.find_product(product).has_value());
+    CHECK(f.ledger.find_product(product)->price_cents == 50);
+    CHECK(f.ledger.find_product(product)->guest_price_cents == 80);
+
+    const auto ada = f.user("Ada");
+    f.must(f.ledger.topup(ada, 500, "Start", "top", f.now, source));
+
+    // Members keep paying the member price and the event carries no guest price.
+    const Event purchase = f.must(f.ledger.purchase(ada, product, "p1", f.now, source));
+    CHECK(purchase.unit_amount_cents == 50);
+    CHECK(purchase.amount_cents == -50);
+    CHECK(purchase.guest_price_cents == kNoGuestPrice);
+
+    // Guests pay the guest price; it is snapshotted in the event.
+    const Event sale = f.must(f.ledger.guest_sale(product, "g1", f.now, source));
+    CHECK(sale.unit_amount_cents == 80);
+    CHECK(sale.amount_cents == 80);
+    CHECK(sale.guest_price_cents == 80);
+    CHECK(f.ledger.summary().guest_sales == 80);
+
+    // Editing the prices afterwards must not change the recorded sale.
+    f.must(f.ledger.update_product(product, "Kaffee", "Kaffee", "cup", "#D4A373", 60, 0, true,
+                                   "u1", f.now, source, 90));
+    CHECK(f.ledger.find_product(product)->price_cents == 60);
+    CHECK(f.ledger.find_product(product)->guest_price_cents == 90);
+    CHECK(f.ledger.find_event(sale.id)->unit_amount_cents == 80);
+    CHECK(f.ledger.summary().guest_sales == 80);
+
+    const Event member_again = f.must(f.ledger.purchase(ada, product, "p2", f.now, source));
+    CHECK(member_again.unit_amount_cents == 60);
+
+    // Clearing the guest price falls back to the member price.
+    f.must(f.ledger.update_product(product, "Kaffee", "Kaffee", "cup", "#D4A373", 60, 0, true,
+                                   "u2", f.now, source, kNoGuestPrice));
+    CHECK(f.ledger.find_product(product)->guest_price_cents == kNoGuestPrice);
+    const Event inherited = f.must(f.ledger.guest_sale(product, "g2", f.now, source));
+    CHECK(inherited.unit_amount_cents == 60);
+    CHECK(inherited.amount_cents == 60);
+    CHECK(inherited.guest_price_cents == kNoGuestPrice);
+}
+
+TEST_CASE("a free guest price of zero is a real price") {
+    Fixture f;
+    const auto source = TimeSource::Synced;
+    const auto product =
+        f.must(f.ledger.create_product("Wasser", "Kaltgetränke", "water", "#7FA7C9", 50, 0, "",
+                                       f.now, source, 0))
+            .product_id;
+    const Event sale = f.must(f.ledger.guest_sale(product, "g0", f.now, source));
+    CHECK(sale.unit_amount_cents == 0);
+    CHECK(sale.amount_cents == 0);
+    CHECK(sale.guest_price_cents == 0);
+    // Zero is written to the journal (unlike the "unset" sentinel).
+    CHECK(event_to_json(sale).contains("guest_price_cents"));
+}
+
+TEST_CASE("invalid guest prices never enter the journal") {
+    Fixture f;
+    const auto source = TimeSource::Synced;
+    const size_t before = f.persisted.size();
+    CHECK_FALSE(static_cast<bool>(f.ledger.create_product("Kaffee", "Kaffee", "cup", "#D4A373",
+                                                          50, 0, "", f.now, source, -2)));
+    CHECK(f.persisted.size() == before);
+
+    const auto product = f.product("Kaffee", 50);
+    CHECK_FALSE(static_cast<bool>(f.ledger.update_product(
+        product, "Kaffee", "Kaffee", "cup", "#D4A373", 50, 0, true, "bad", f.now, source,
+        kMaxPriceCents + 1)));
+    CHECK(f.persisted.size() == before + 1);  // only the valid product_created above
+    CHECK(f.ledger.find_product(product)->guest_price_cents == kNoGuestPrice);
+}
+
+TEST_CASE("legacy products and guest sales replay without a guest price") {
+    Fixture f;
+    const auto product = f.product("Kaffee", 50);
+    f.user("Ada");
+    const Event sale = f.must(f.ledger.guest_sale(product, "legacy-sale", f.now,
+                                                  TimeSource::Synced));
+
+    // Neither product events nor guest sales written before this feature carry
+    // the field, so old canonical hashes stay valid.
+    for (const Event& event : f.persisted) {
+        CHECK_FALSE(event_to_json(event).contains("guest_price_cents"));
+    }
+
+    // Old-format product JSON without the key reads as "no guest price".
+    auto product_json = product_to_json(*f.ledger.find_product(product));
+    product_json.erase("guest_price_cents");
+    CHECK(product_from_json(product_json).guest_price_cents == kNoGuestPrice);
+
+    // Replay the whole journal into a fresh ledger and verify chain + amounts.
+    Ledger replay;
+    for (const Event& event : f.persisted) {
+        auto applied = replay.apply(event_from_json(event_to_json(event)));
+        REQUIRE(static_cast<bool>(applied));
+    }
+    CHECK(replay.find_product(product)->guest_price_cents == kNoGuestPrice);
+    CHECK(replay.summary().guest_sales == 50);
+    CHECK(replay.find_event(sale.id)->amount_cents == 50);
+}

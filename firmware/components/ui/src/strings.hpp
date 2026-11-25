@@ -15,6 +15,7 @@ inline constexpr const char* BOOK_QUESTION = "Wer trinkt?";
 inline constexpr const char* BOOK_PICK_DRINK = "Getränk wählen";
 inline constexpr const char* BOOK_GUEST = "Gast";
 inline constexpr const char* BOOK_GUEST_HINT = "Bar";
+inline constexpr const char* BOOK_GUEST_PRICE = "Gastpreis";
 inline constexpr const char* BOOK_CHANGE_USER = "Wechseln";
 inline constexpr const char* BOOK_EMPTY = "Keine Benutzer – Admin: Seite 3 → WLAN + Passwort";
 inline constexpr const char* BOOK_NO_PRODUCTS = "Keine Getränke hinterlegt";

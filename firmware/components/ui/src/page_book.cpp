@@ -242,7 +242,12 @@ void UiAppImpl::refresh_book_page() {
             lv_obj_t* name = theme::make_label(text, product.name.c_str(), theme::font_body(),
                                                theme::color(theme::COLOR_TEXT));
             theme::set_ellipsis(name);
-            theme::make_label(text, format_money(product.price_cents).c_str(), theme::font_small(),
+            // In guest mode the tile shows what the guest will actually pay:
+            // the configured guest price, or the member price when none is set.
+            const Cents shown = guest_mode_ && product.guest_price_cents >= 0
+                                    ? product.guest_price_cents
+                                    : product.price_cents;
+            theme::make_label(text, format_money(shown).c_str(), theme::font_small(),
                               theme::color(theme::COLOR_MUTED));
 
             auto* ctx = new IdContext{this, product.id};

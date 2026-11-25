@@ -25,14 +25,14 @@ const users = [
 ];
 
 const products = [
-  product("prd_kaffee", "Kaffee", "Kaffee", "cup", "#D4A373", 50, 0, true),
+  product("prd_kaffee", "Kaffee", "Kaffee", "cup", "#D4A373", 50, 0, true, 80),
   product("prd_espresso", "Espresso", "Kaffee", "espresso", "#B5835A", 40, 1, true),
-  product("prd_kakao", "Kakao", "Tee", "cocoa", "#9B6B43", 80, 2, true),
+  product("prd_kakao", "Kakao", "Tee", "cocoa", "#9B6B43", 80, 2, true, 100),
   product("prd_tee", "Tee", "Tee", "tea", "#8FBC8F", 30, 3, true),
   product("prd_wasser", "Wasser", "Kaltgetränke", "water", "#7FA7C9", 20, 4, false),
 ];
 
-function product(id, name, category, icon, color, price_cents, sort, active) {
+function product(id, name, category, icon, color, price_cents, sort, active, guest_price_cents = null) {
   return {
     id,
     name,
@@ -40,11 +40,19 @@ function product(id, name, category, icon, color, price_cents, sort, active) {
     icon,
     color,
     price_cents,
+    guest_price_cents,
     sort,
     active,
     created_at: now - 86400 * 120,
     updated_at: now - 3600,
   };
+}
+
+/** `null` inherits the member price; a set value must be a valid cents amount. */
+function validGuestPrice(value) {
+  if (value === undefined || value === null) return true;
+  const cents = Number(value);
+  return Number.isInteger(cents) && cents >= 0 && cents <= 100000;
 }
 
 const balances = { usr_ada: 1250, usr_bob: -350, usr_cara: 0, usr_dora: 420 };
@@ -1117,6 +1125,9 @@ const server = http.createServer(async (req, res) => {
     if (!String(body.name ?? "").trim() || !String(body.category ?? "").trim()) {
       return json(res, 400, { code: "invalid", message: "name required" });
     }
+    if (!validGuestPrice(body.guest_price_cents)) {
+      return json(res, 400, { code: "invalid", message: "guest price out of range" });
+    }
     const created = {
       id: `prd_${Math.random().toString(16).slice(2, 8)}`,
       name: String(body.name).slice(0, 40),
@@ -1124,6 +1135,7 @@ const server = http.createServer(async (req, res) => {
       icon: body.icon ?? "cup",
       color: body.color ?? "#D4A373",
       price_cents: Number(body.price_cents ?? 0),
+      guest_price_cents: body.guest_price_cents ?? null,
       sort: Number(body.sort ?? products.length),
       active: body.active !== false,
       created_at: now,
@@ -1149,6 +1161,12 @@ const server = http.createServer(async (req, res) => {
     }
     for (const key of ["name", "category", "icon", "color", "price_cents", "sort", "active"]) {
       item[key] = body[key];
+    }
+    if (body.guest_price_cents !== undefined) {
+      if (!validGuestPrice(body.guest_price_cents)) {
+        return json(res, 400, { code: "invalid", message: "guest price out of range" });
+      }
+      item.guest_price_cents = body.guest_price_cents;
     }
     item.updated_at = now;
     addEvent({ type: "product_updated", product_id: item.id, unit_amount_cents: item.price_cents, amount_cents: 0 });

@@ -204,12 +204,18 @@ Result<Unit> Ledger::validate_event(const Event& event) const {
                 return Result<Unit>::fail("product", "product already exists");
             if (event.unit_amount_cents < 0)
                 return Result<Unit>::fail("price", "price must not be negative");
+            if (event.guest_price_cents < kNoGuestPrice ||
+                event.guest_price_cents > kMaxPriceCents)
+                return Result<Unit>::fail("price", "guest price is out of range");
             break;
         case EventType::ProductUpdated:
         case EventType::ProductArchived:
         case EventType::ProductDeleted:
             if (!product_index_.count(event.product_id))
                 return Result<Unit>::fail("product", "unknown product");
+            if (event.guest_price_cents < kNoGuestPrice ||
+                event.guest_price_cents > kMaxPriceCents)
+                return Result<Unit>::fail("price", "guest price is out of range");
             break;
         case EventType::Purchase: {
             auto ui = user_index_.find(event.user_id);
@@ -345,6 +351,7 @@ Result<Unit> Ledger::apply(const Event& event) {
             p.icon = event.product_icon;
             p.color = event.product_color;
             p.price_cents = event.unit_amount_cents;
+            p.guest_price_cents = event.guest_price_cents;
             p.sort = event.product_sort;
             p.active = event.product_active;
             p.created_at = event.ts;
@@ -361,6 +368,7 @@ Result<Unit> Ledger::apply(const Event& event) {
             p.icon = event.product_icon;
             p.color = event.product_color;
             p.price_cents = event.unit_amount_cents;
+            p.guest_price_cents = event.guest_price_cents;
             p.sort = event.product_sort;
             p.active = event.product_active;
             p.updated_at = event.ts;
@@ -553,9 +561,12 @@ Result<Event> Ledger::archive_user(std::string user_id, std::string request_id, 
 
 Result<Event> Ledger::create_product(std::string name, std::string category, std::string icon,
                                      std::string color, Cents price_cents, int sort,
-                                     std::string request_id, Timestamp ts, TimeSource source) {
+                                     std::string request_id, Timestamp ts, TimeSource source,
+                                     Cents guest_price_cents) {
     if (name.empty()) return fail("name", "name is required");
     if (price_cents < 0) return fail("price", "price must not be negative");
+    if (guest_price_cents < kNoGuestPrice || guest_price_cents > kMaxPriceCents)
+        return fail("price", "guest price is out of range");
     Event e;
     e.type = EventType::ProductCreated;
     e.ts = ts;
@@ -567,6 +578,7 @@ Result<Event> Ledger::create_product(std::string name, std::string category, std
     e.product_icon = std::move(icon);
     e.product_color = std::move(color);
     e.unit_amount_cents = price_cents;
+    e.guest_price_cents = guest_price_cents;
     e.product_sort = sort;
     e.product_active = true;
     return commit_event(std::move(e), std::move(request_id));
@@ -575,10 +587,12 @@ Result<Event> Ledger::create_product(std::string name, std::string category, std
 Result<Event> Ledger::update_product(std::string product_id, std::string name, std::string category,
                                      std::string icon, std::string color, Cents price_cents,
                                      int sort, bool active, std::string request_id, Timestamp ts,
-                                     TimeSource source) {
+                                     TimeSource source, Cents guest_price_cents) {
     if (!product_index_.count(product_id)) return fail("product", "unknown product");
     if (name.empty()) return fail("name", "name is required");
     if (price_cents < 0) return fail("price", "price must not be negative");
+    if (guest_price_cents < kNoGuestPrice || guest_price_cents > kMaxPriceCents)
+        return fail("price", "guest price is out of range");
     Event e;
     e.type = active ? EventType::ProductUpdated : EventType::ProductArchived;
     e.ts = ts;
@@ -590,6 +604,7 @@ Result<Event> Ledger::update_product(std::string product_id, std::string name, s
     e.product_icon = std::move(icon);
     e.product_color = std::move(color);
     e.unit_amount_cents = price_cents;
+    e.guest_price_cents = guest_price_cents;
     e.product_sort = sort;
     e.product_active = active;
     return commit_event(std::move(e), std::move(request_id));
@@ -601,7 +616,7 @@ Result<Event> Ledger::archive_product(std::string product_id, std::string reques
     if (it == product_index_.end()) return fail("product", "unknown product");
     const Product& p = products_[it->second];
     return update_product(p.id, p.name, p.category, p.icon, p.color, p.price_cents, p.sort, false,
-                          std::move(request_id), ts, source);
+                          std::move(request_id), ts, source, p.guest_price_cents);
 }
 
 Result<Event> Ledger::delete_product(std::string product_id, std::string request_id, Timestamp ts,
@@ -620,6 +635,7 @@ Result<Event> Ledger::delete_product(std::string product_id, std::string request
     e.product_icon = p.icon;
     e.product_color = p.color;
     e.unit_amount_cents = p.price_cents;
+    e.guest_price_cents = p.guest_price_cents;
     e.product_sort = p.sort;
     e.product_active = false;
     return commit_event(std::move(e), std::move(request_id));
@@ -664,6 +680,10 @@ Result<Event> Ledger::guest_sale(std::string product_id, std::string request_id,
     if (pi == product_index_.end()) return fail("product", "unknown product");
     const Product& p = products_[pi->second];
     if (!p.active) return fail("product", "product is archived");
+    // A guest pays the configured guest price; without one the member price
+    // applies. The charged amount is snapshotted in the event below so later
+    // price edits cannot change historical guest revenue.
+    const Cents charged = p.guest_price_cents >= 0 ? p.guest_price_cents : p.price_cents;
     Event e;
     e.type = EventType::GuestSale;
     e.ts = ts;
@@ -674,10 +694,11 @@ Result<Event> Ledger::guest_sale(std::string product_id, std::string request_id,
     e.product_category = p.category;
     e.product_icon = p.icon;
     e.product_color = p.color;
-    e.unit_amount_cents = p.price_cents;
+    e.unit_amount_cents = charged;
+    e.guest_price_cents = p.guest_price_cents;
     e.product_sort = p.sort;
     e.product_active = p.active;
-    e.amount_cents = p.price_cents;
+    e.amount_cents = charged;
     e.payment = "cash";
     e.note = std::move(note);
     return commit_event(std::move(e), std::move(request_id));
@@ -756,6 +777,7 @@ Result<Event> Ledger::void_event(std::string event_id, std::string reason, std::
     e.product_sort = orig.product_sort;
     e.product_active = orig.product_active;
     e.unit_amount_cents = orig.unit_amount_cents;
+    e.guest_price_cents = orig.guest_price_cents;
     e.amount_cents = -orig.amount_cents;
     e.payment = orig.payment;
     e.note = std::move(reason);

@@ -342,7 +342,8 @@ void UiAppImpl::book_product(const Product& product) {
     std::string text;
     if (guest_mode_) {
         text = std::string(strings::BOOK_GUEST) + strings::COMMON_SEPARATOR + event.product_name +
-               strings::COMMON_SEPARATOR + format_money(event.unit_amount_cents);
+               strings::COMMON_SEPARATOR + strings::BOOK_GUEST_PRICE + " " +
+               format_money(event.unit_amount_cents);
         show_toast(text, false, "", kToastInfoMs);
     } else {
         const Cents saldo = backend_.balance(selected_user_id_);
@@ -400,6 +401,7 @@ uint64_t UiAppImpl::book_catalog_fingerprint() const {
         mix_text(product.icon);
         mix_text(product.color);
         mix(static_cast<uint64_t>(product.price_cents));
+        mix(static_cast<uint64_t>(product.guest_price_cents));
         mix(static_cast<uint64_t>(product.sort));
     }
     return hash;

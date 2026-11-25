@@ -179,6 +179,11 @@ export function ProductsPage() {
                   <div className="text-right">
                     <div className="mono font-semibold">{formatEuro(product.price_cents)}</div>
                     <div className="muted text-[11px]">
+                      {product.guest_price_cents != null
+                        ? `${de.productGuestPriceBadge}: ${formatEuro(product.guest_price_cents)}`
+                        : `${de.productGuestPriceBadge}: ${de.productGuestPriceInherit}`}
+                    </div>
+                    <div className="muted text-[11px]">
                       {de.sort} {product.sort} · {product.active ? de.active : de.inactive}
                     </div>
                   </div>
@@ -285,6 +290,9 @@ function ProductFormDialog({
   const [name, setName] = useState(product?.name ?? "");
   const [category, setCategory] = useState(product?.category ?? "Kaffee");
   const [price, setPrice] = useState(product ? inputFromCents(product.price_cents) : "");
+  const [guestPrice, setGuestPrice] = useState(
+    product?.guest_price_cents != null ? inputFromCents(product.guest_price_cents) : "",
+  );
   const [icon, setIcon] = useState(product?.icon ?? "cup");
   const [color, setColor] = useState(product?.color ?? colors[0]);
   const [sort, setSort] = useState(String(product?.sort ?? nextSort));
@@ -304,10 +312,17 @@ function ProductFormDialog({
       setError(de.invalidAmount);
       return;
     }
+    const hasGuestPrice = guestPrice.trim() !== "";
+    const guestMoney = hasGuestPrice ? parseMoneyInput(guestPrice) : null;
+    if (guestMoney && (!guestMoney.valid || guestMoney.cents < 0)) {
+      setError(de.invalidAmount);
+      return;
+    }
     const input: ProductInput = {
       name: name.trim(),
       category: category.trim(),
       price_cents: money.cents,
+      guest_price_cents: guestMoney ? guestMoney.cents : null,
       icon,
       color,
       sort: Number.parseInt(sort, 10) || 0,
@@ -377,11 +392,16 @@ function ProductFormDialog({
           </label>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-3">
           <label className="block space-y-1.5">
             <span className="label">{de.productPrice}</span>
             <MoneyInput value={price} onChange={setPrice} />
             <MoneyPreview value={price} />
+          </label>
+          <label className="block space-y-1.5">
+            <span className="label">{de.productGuestPrice}</span>
+            <MoneyInput value={guestPrice} onChange={setGuestPrice} />
+            <span className="muted block text-xs">{de.productGuestPriceHint}</span>
           </label>
           <label className="block space-y-1.5">
             <span className="label">{de.sort}</span>

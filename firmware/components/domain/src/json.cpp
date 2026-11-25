@@ -33,16 +33,21 @@ User user_from_json(const nlohmann::json& j) {
 }
 
 nlohmann::json product_to_json(const Product& p) {
-    return nlohmann::json{{"id", p.id},
-                          {"name", p.name},
-                          {"category", p.category},
-                          {"icon", p.icon},
-                          {"color", p.color},
-                          {"price_cents", p.price_cents},
-                          {"sort", p.sort},
-                          {"active", p.active},
-                          {"created_at", p.created_at},
-                          {"updated_at", p.updated_at}};
+    nlohmann::json j{{"id", p.id},
+                     {"name", p.name},
+                     {"category", p.category},
+                     {"icon", p.icon},
+                     {"color", p.color},
+                     {"price_cents", p.price_cents},
+                     {"sort", p.sort},
+                     {"active", p.active},
+                     {"created_at", p.created_at},
+                     {"updated_at", p.updated_at}};
+    // `null` means "guests pay the member price"; never emit the internal
+    // sentinel on the wire. Older readers ignore the extra field.
+    j["guest_price_cents"] =
+        p.guest_price_cents >= 0 ? nlohmann::json(p.guest_price_cents) : nlohmann::json(nullptr);
+    return j;
 }
 
 Product product_from_json(const nlohmann::json& j) {
@@ -53,6 +58,11 @@ Product product_from_json(const nlohmann::json& j) {
     p.icon = j.value("icon", "");
     p.color = j.value("color", "");
     p.price_cents = j.value("price_cents", static_cast<Cents>(0));
+    // Missing (legacy product) or explicit null both mean "no guest price".
+    p.guest_price_cents = kNoGuestPrice;
+    if (j.contains("guest_price_cents") && j["guest_price_cents"].is_number_integer()) {
+        p.guest_price_cents = j["guest_price_cents"].get<Cents>();
+    }
     p.sort = j.value("sort", 0);
     p.active = j.value("active", true);
     p.created_at = j.value("created_at", static_cast<Timestamp>(0));
@@ -82,6 +92,9 @@ nlohmann::json event_to_json(const Event& e) {
         j["product_active"] = e.product_active;
     }
     if (e.unit_amount_cents != 0) j["unit_amount_cents"] = e.unit_amount_cents;
+    // Omit the sentinel so events recorded before guest prices existed keep
+    // their canonical hash; a guest price of 0 is a real value and is written.
+    if (e.guest_price_cents >= 0) j["guest_price_cents"] = e.guest_price_cents;
     if (e.amount_cents != 0) j["amount_cents"] = e.amount_cents;
     put_if(j, "expense_id", e.expense_id);
     put_if(j, "expense_category", e.expense_category);
@@ -120,6 +133,7 @@ Event event_from_json(const nlohmann::json& j) {
     e.product_sort = j.value("product_sort", 0);
     e.product_active = j.value("product_active", true);
     e.unit_amount_cents = j.value("unit_amount_cents", static_cast<Cents>(0));
+    e.guest_price_cents = j.value("guest_price_cents", kNoGuestPrice);
     e.amount_cents = j.value("amount_cents", static_cast<Cents>(0));
     e.expense_id = j.value("expense_id", "");
     e.expense_category = j.value("expense_category", "");

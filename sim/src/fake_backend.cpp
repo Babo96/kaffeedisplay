@@ -33,19 +33,20 @@ void FakeBackend::seed() {
     const std::string emma = add_user("Emma", "#C9A0DC", 1500, 0);
 
     auto add_product = [&](const char* name, const char* category, const char* icon,
-                           const char* color, kaffee::Cents price, int sort) {
+                           const char* color, kaffee::Cents price, int sort,
+                           kaffee::Cents guest_price = kaffee::kNoGuestPrice) {
         auto event = ledger_.create_product(name, category, icon, color, price, sort,
                                             std::string("seed-product-") + name, created,
-                                            kaffee::TimeSource::Synced);
+                                            kaffee::TimeSource::Synced, guest_price);
         return event.value ? event.value->product_id : std::string();
     };
 
-    const std::string coffee = add_product("Kaffee", "Kaffee", "coffee", "#D4A373", 50, 1);
+    const std::string coffee = add_product("Kaffee", "Kaffee", "coffee", "#D4A373", 50, 1, 80);
     const std::string espresso = add_product("Espresso", "Kaffee", "coffee", "#B87333", 50, 2);
     const std::string cappuccino = add_product("Cappuccino", "Kaffee", "coffee", "#E0B15C", 70, 3);
     const std::string tea = add_product("Tee", "Tee", "tea", "#8FBC8F", 50, 4);
     const std::string water = add_product("Wasser", "Sonstiges", "water", "#7FA6D9", 30, 5);
-    const std::string cocoa = add_product("Kakao", "Sonstiges", "cocoa", "#C07A48", 70, 6);
+    const std::string cocoa = add_product("Kakao", "Sonstiges", "cocoa", "#C07A48", 70, 6, 100);
 
     const std::string products[] = {coffee, espresso, cappuccino, tea, water, cocoa};
     const std::string users[] = {anna, ben, clara, david, emma};
