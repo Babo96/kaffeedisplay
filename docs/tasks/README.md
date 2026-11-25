@@ -18,6 +18,9 @@ file as you work; put the PR link under Evidence when done.
 | T-012 | Optional user avatars (30 offline illustrations) | ui/web/domain | T-001, T-002, T-003 | 42vibes | done ([#14](https://github.com/Babo96/kaffeedisplay/pull/14)) |
 | T-013 | Order booking-page users by consumption (admin toggle) | ui/web/domain | T-004, T-012 | – | done ([#18](https://github.com/Babo96/kaffeedisplay/pull/18)) |
 | T-014 | Animated coffee idle / power-save display | embedded UI | T-003 | 42vibes | in-progress |
+| T-048 | Long-term statistics (all-time per user, product, month) | web/api/domain | T-001, T-002, T-004 | fixer | done ([#56](https://github.com/Babo96/kaffeedisplay/pull/56)) |
+| T-049 | Optional guest prices per product | domain/web/ui | T-001, T-002, T-003 | fixer | done ([#57](https://github.com/Babo96/kaffeedisplay/pull/57)) |
+| T-051 | Page 1 member grid paged by vertical swipe | ui | T-003 | designer | done ([#58](https://github.com/Babo96/kaffeedisplay/pull/58)) |
 
 Design record for T-013: [T-013-page1-layout.md](T-013-page1-layout.md) (page 1
 for 30+ members — grid geometry, scroll affordance and the numbers behind them).
