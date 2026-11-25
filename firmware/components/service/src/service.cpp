@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "kaffee/auth.hpp"
+#include "kaffee/backup.hpp"
 #include "kaffee/json.hpp"
 
 namespace kaffee {
@@ -1260,32 +1261,12 @@ Result<Unit> KaffeeServiceImpl::extend_ap(int seconds) {
 Result<std::string> KaffeeServiceImpl::export_backup() {
     std::lock_guard<std::mutex> lock(mutex_);
 
-    nlohmann::json users = nlohmann::json::array();
-    for (const User& user : ledger_.users()) users.push_back(user_to_json(user));
-    nlohmann::json products = nlohmann::json::array();
-    for (const Product& product : ledger_.products()) products.push_back(product_to_json(product));
-    nlohmann::json events = nlohmann::json::array();
-    for (const Event& event : ledger_.events()) events.push_back(event_to_json(event));
-    nlohmann::json expenses_json = nlohmann::json::array();
-    for (const Expense& expense : ledger_.expenses())
-        expenses_json.push_back(expense_to_json(expense));
-    nlohmann::json cash_counts = nlohmann::json::array();
-    for (const CashCount& count : ledger_.cash_counts())
-        cash_counts.push_back(cash_count_to_json(count));
+    const Timestamp backup_at = now();
+    std::string json = backup_to_json(ledger_, settings_, backup_at);
 
-    const nlohmann::json backup{{"format", "kaffeekasse-backup"},
-                                {"version", 1},
-                                {"created_at", now()},
-                                {"settings", settings_to_json(settings_, false)},
-                                {"users", std::move(users)},
-                                {"products", std::move(products)},
-                                {"events", std::move(events)},
-                                {"expenses", std::move(expenses_json)},
-                                {"cash_counts", std::move(cash_counts)}};
-
-    last_backup_at_ = now();
+    last_backup_at_ = backup_at;
     stats_cache_valid_ = false;
-    return Result<std::string>::ok(backup.dump(2));
+    return Result<std::string>::ok(std::move(json));
 }
 
 Result<Unit> KaffeeServiceImpl::import_backup(const std::string& json,

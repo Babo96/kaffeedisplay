@@ -59,6 +59,49 @@ These are admin-only concerns and are not shown on the booking screen.
 - Recommended: download a backup after large changes and before OTA.
 - The device warns in the dashboard when the last backup is older than 30 days.
 
+## MicroSD backup
+
+The TF slot is an automatic, backup-only target. It is never used as live
+storage, is not read at boot, and is not part of the restore path.
+
+### Preparing a card
+
+1. Use a 4–32 GB card. Larger cards usually ship as exFAT and will not mount.
+2. Partition it with an **MBR** partition table (no GPT) and format the
+   partition as **FAT32** with 16–32 KiB clusters. On Linux:
+   `sudo mkfs.vfat -F 32 -s 32 /dev/sdX1` after an MBR partition table
+   (`parted /dev/sdX mklabel msdos`).
+3. Do not use exFAT, NTFS or APFS. ESP-IDF 5.5 FatFs supports FAT12/16/32 only.
+4. Insert the card; no button press or reboot is needed. The device checks
+   every 30–60 s.
+5. The card is never formatted by the device, even if it cannot be mounted.
+
+### Files
+
+| File | Contents |
+|---|---|
+| `kaffeekasse-db.json` | The same portable export as `GET /api/v1/backup` (no passwords, no Wi-Fi credentials). Fixed name, overwritten. |
+| `kaffeekasse_YYYY-MM_transactions.csv` | The current month's transactions in the Excel CSV format of the report export. Rewritten on every daily run. |
+
+The daily run is at **00:08 Europe/Berlin**. The DB backup is also refreshed
+then. If the device was off at 00:08, it catches up after boot once the clock is
+trustworthy; on the 1st it finalises the previous month before writing the new
+one. A CSV is never written while the clock is unset or only restored, so no
+1970 file appears.
+
+### Removing the card
+
+- Unplugging the card is safe for bookings; the card is only open during a run.
+- If the card is removed mid-write, the run aborts, the device tries to unmount
+  and retries later. The partially written file is overwritten by the next
+  successful run.
+- The device logs a missing/incompatible card at most once per 15 minutes. Use
+  `/logs` or the USB serial console to check.
+- The SD card is **not** a restore source. To restore, upload the JSON through
+  Admin → System → Backup/restore as usual.
+- A card formatted with GPT or exFAT is ignored. Reformat it as MBR + FAT32 on a
+  PC.
+
 ## OTA
 
 - Admin → System → Firmware upload (`firmware.bin` from CI/release).

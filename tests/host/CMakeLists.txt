@@ -23,6 +23,7 @@ set(NET_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../firmware/components/net)
 set(API_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../firmware/components/api)
 set(UI_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../firmware/components/ui)
 set(BOARD_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../firmware/components/board)
+set(SDBACKUP_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../firmware/components/sdbackup)
 
 add_executable(kaffee_tests
   doctest_main.cpp
@@ -38,6 +39,7 @@ add_executable(kaffee_tests
   member_order_test.cpp
   touch_transform_test.cpp
   storage_boot_test.cpp
+  sd_backup_test.cpp
   ${DOMAIN_DIR}/src/domain.cpp
   ${DOMAIN_DIR}/src/json.cpp
   ${DOMAIN_DIR}/src/sha256.cpp
@@ -45,6 +47,7 @@ add_executable(kaffee_tests
   ${STORAGE_DIR}/src/file_store.cpp
   ${SERVICE_DIR}/src/auth.cpp
   ${SERVICE_DIR}/src/service.cpp
+  ${SERVICE_DIR}/src/backup.cpp
   ${REPORTS_DIR}/src/reports.cpp
   ${NET_DIR}/src/net_pure.cpp
   ${API_DIR}/src/api_util.cpp
@@ -52,6 +55,7 @@ add_executable(kaffee_tests
   ${API_DIR}/src/api_multipart.cpp
   ${UI_DIR}/src/format.cpp
   ${UI_DIR}/src/member_order.cpp
+  ${SDBACKUP_DIR}/src/sd_backup.cpp
 )
 
 target_include_directories(kaffee_tests PRIVATE
@@ -65,6 +69,7 @@ target_include_directories(kaffee_tests PRIVATE
   ${API_DIR}/src
   ${UI_DIR}/src
   ${BOARD_DIR}/include
+  ${SDBACKUP_DIR}/include
   ${CMAKE_CURRENT_SOURCE_DIR}/../../firmware/main
   ${CMAKE_CURRENT_SOURCE_DIR}/../third_party
 )

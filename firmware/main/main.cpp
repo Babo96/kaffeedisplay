@@ -14,6 +14,7 @@
 #include "kaffee/littlefs_store.hpp"
 #include "kaffee/net_manager.hpp"
 #include "kaffee/nvs_settings_store.hpp"
+#include "kaffee/sd_backup_esp.hpp"
 #include "kaffee/service.hpp"
 #include "kaffee/ui.hpp"
 #include "kaffee/ui_board_adapter.hpp"
@@ -345,6 +346,11 @@ extern "C" void app_main(void) {
     if (boot_health_check(state)) {
         ESP_LOGI(kTag, "health check passed, confirming OTA image");
         esp_ota_mark_app_valid_cancel_rollback();
+        // Start backup only after the OTA image is confirmed: a slow or
+        // missing card must never sit in the rollback window.
+        if (!kaffee::sd::start_sd_backup_task(*service)) {
+            ESP_LOGW(kTag, "microSD backup task not started");
+        }
     } else {
         ESP_LOGE(kTag, "health check failed, leaving OTA rollback armed");
     }

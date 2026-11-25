@@ -15,7 +15,7 @@ CH340 USB-serial at `/dev/ttyUSB0`, MAC `f8:5b:1b:90:b8:34`.
 | Touch | GT911 capacitive, I²C 0x5D |
 | Backlight | GPIO 38, LEDC PWM |
 | USB | USB-C, CH340C serial (not native USB) |
-| Extras | microSD (not used), battery connector, optional relays |
+| Extras | microSD (TF) slot, battery connector, optional relays |
 
 Do **not** use the relay version to switch mains. Relays are ignored.
 
@@ -86,9 +86,33 @@ applies the same rotation formula to pointer input).
 
 - 16 MB flash, custom partition table:
   NVS 24 KB, otadata 8 KB, phy 4 KB, two 3 MB OTA slots, 9 MB LittleFS.
-- microSD is not used; pin conflicts with the RGB bus make it unreliable.
+- The microSD slot is backup-only; see below and
+  `docs/adr/0018-microsd-backup.md`.
 - Journal/snapshot wear is handled by append-only writes + LittleFS wear
   levelling.
+
+## microSD (TF) slot
+
+The slot is wired to SPI2 and works in SPI mode (no SDMMC, no card-detect pin).
+
+| Signal | GPIO | Notes |
+|---|---|---|
+| SCK | 48 | shared with the ST7701 3-wire init SCK |
+| MOSI | 47 | shared with the ST7701 3-wire init MOSI |
+| MISO | 41 | free at runtime (JTAG unused; USB is CH340 UART) |
+| CS | 42 | free at runtime (JTAG unused) |
+
+GPIO 47/48 are only used by `init_panel()` for the panel's 3-wire init
+sequence. The SD backup task starts after the boot health check, so the bus is
+free by then. If panel initialisation is ever repeated at runtime, unmount the
+card and free the SPI bus first. GPIO 41/42 are JTAG pins on the ESP32-S3 but
+are not used on this board; internal pull-ups on CS and MISO are enabled before
+a mount. The board's external pull-ups are unverified — if a card mounts only
+intermittently, check those pins first.
+
+The card is never formatted and never used as live storage. Formatting, file
+layout and failure behaviour are documented in `docs/operations.md` and
+ADR 0018.
 
 ## USB / offline behavior
 

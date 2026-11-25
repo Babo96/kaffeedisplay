@@ -2,7 +2,7 @@ idf_component_register(
     SRCS "main.cpp" "platform_adapter.cpp" "api_controller.cpp" "serial_console.cpp"
     INCLUDE_DIRS "."
     REQUIRES board domain storage service ui net api reports webassets nvs_flash littlefs
-             esp_app_format esp_event lvgl driver
+             esp_app_format esp_event lvgl driver sdbackup
 )
 
 # The serial console's test-only write commands (book, void) stay locked by
