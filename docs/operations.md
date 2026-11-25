@@ -92,10 +92,13 @@ one. A CSV is never written while the clock is unset or only restored, so no
 ### Removing the card
 
 - Unplugging the card is safe for bookings; the card is only open during a run.
+- No reboot is needed to insert or remove a card. Presence is refreshed by a
+  mount/unmount probe within about 5 minutes when no backup run is due; while
+  idle nothing stays mounted.
 - If the card is removed mid-write, the run aborts, the device tries to unmount
   and retries later. The partially written file is overwritten by the next
   successful run.
-- The device logs a missing/incompatible card at most once per 15 minutes. Use
+- The device logs a missing/incompatible card at most once per 5 minutes. Use
   `/logs` or the USB serial console to check.
 - The SD card is **not** a restore source. To restore, upload the JSON through
   Admin → System → Backup/restore as usual.

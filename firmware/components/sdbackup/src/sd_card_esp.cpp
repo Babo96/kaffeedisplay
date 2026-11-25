@@ -137,7 +137,7 @@ class EspSdVolume final : public IVolume {
         }
 
         mounted_ = true;
-        ESP_LOGI(kTag, "backup card mounted at %s", kMountPoint);
+        ESP_LOGD(kTag, "backup card mounted at %s", kMountPoint);
         return Result<Unit>::ok(Unit{});
     }
 

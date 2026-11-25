@@ -37,6 +37,14 @@ struct SdRunState {
 // wall clock is unset. It is never shown as a real timestamp.
 inline constexpr Timestamp kNoClockSuccess = 1;
 
+// Presence probe cadence when no backup run is due. The card has no detect
+// pin, so the only way to refresh presence is a mount/unmount pair.
+inline constexpr Timestamp kProbeIntervalSeconds = 5 * 60;
+
+// True when an idle probe should run. `now` and `last_probe` are monotonic
+// seconds, not wall time, so a browser clock jump cannot trigger extra mounts.
+bool probe_due(Timestamp now, Timestamp last_probe);
+
 // Thread-safe snapshot consumed by `PlatformAdapter::stats()`. The UI/LVGL
 // task and the serial console both read it, while the backup task writes it.
 // Defaults mean "no card detected / no successful run yet".
@@ -54,6 +62,10 @@ class SdStatusMonitor {
     void set_last_success(Timestamp ts);
     void record_success(Timestamp now);
     void record_error(std::string message, bool card_present);
+    // Idle presence probes update only `card_present`; `backup_ok`,
+    // `last_success` and `last_error` keep describing the last real backup.
+    void record_probe_success();
+    void record_probe_failure();
 
   private:
     mutable std::mutex mutex_;

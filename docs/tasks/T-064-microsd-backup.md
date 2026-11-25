@@ -60,27 +60,31 @@ restoring from the card.
   the render/stats path. Serial `status` prints the new fields; the sim fake
   reports a healthy card. `/device`, OpenAPI and web are untouched — page 3
   layout/strings belong to the designer.
+- **Hot swap:** with no run due, a 5-minute mount/unmount probe refreshes
+  `sd_card_present` without writing. A probe changes only presence; it never
+  touches `backup_ok`, `last_success` or `last_error`. A due run's mount counts
+  as the probe. Missing-card logs share the 5-minute probe rate limit.
 - **Size budget:** the base image was 3,097,840 B with 47,888 B free. The SD
   stack (FatFs, SDMMC/SPI, sdbackup) adds ~110 KB. The firmware UI only uses
   object/button/label/line/image/qrcode/tileview and initialises no LVGL theme,
   so the unused widgets, themes, grid layout, observer, examples and demos are
-  disabled in `sdkconfig.defaults`. The image is now 3,122,832 B (22,896 B
+  disabled in `sdkconfig.defaults`. The image is now 3,124,704 B (21,024 B
   headroom).
 
 ## Evidence
 
-- `make test-host`: 178 test cases / 27,740 assertions pass, including the new
+- `make test-host`: 181 test cases / 27,776 assertions pass, including the new
   plan truth table, month-boundary order, failed-write retry, mount failure,
-  missing card, untrusted clock, the status-monitor snapshot and the DB export
-  equivalence/no-secrets test.
+  missing card, untrusted clock, probe interval/presence rules, the
+  status-monitor snapshots and the DB export equivalence/no-secrets test.
 - `npm --prefix web test`: 40 tests pass; `npm --prefix web run typecheck`:
   clean.
 - `PATH=/tmp/cfbin:$PATH make fmt-check`: clean with clang-format 18.
 - `PATH=/tmp/cfbin:$PATH make check`: green. Firmware build is skipped locally
   because `idf.py` is not installed; the Docker build below covers it.
 - Firmware Docker build (`espressif/idf:release-v5.5`):
-  `kaffeekasse.bin` 3,122,832 B, `python3 tools/check_sizes.py` all budgets ok
-  (3049.6 KiB / 3072 KiB).
+  `kaffeekasse.bin` 3,124,704 B, `python3 tools/check_sizes.py` all budgets ok
+  (3051.5 KiB / 3072 KiB).
 - **Not verified on hardware**: no card and no `/dev/ttyUSB0` were available.
   The physical mount, card removal while mounted and brown-out behaviour remain
   to be checked on the device.

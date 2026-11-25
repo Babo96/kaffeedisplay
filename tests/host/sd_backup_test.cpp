@@ -347,6 +347,16 @@ TEST_CASE("sd execute: month boundary writes previous, current, then DB") {
     CHECK(volume.files["kaffeekasse-db.json"] == "db-payload");
 }
 
+TEST_CASE("sd probe decision: five-minute interval, first probe and clock reset") {
+    CHECK(sd::probe_due(100, 0));
+    CHECK_FALSE(sd::probe_due(399, 100));
+    CHECK(sd::probe_due(400, 100));
+    CHECK(sd::probe_due(900, 100));
+    // A monotonic clock reset after reboot must not suppress the probe.
+    CHECK(sd::probe_due(50, 100));
+    CHECK_FALSE(sd::probe_due(0, 0));
+}
+
 TEST_CASE("sd status monitor defaults to not detected and publishes copies") {
     sd::SdStatusMonitor monitor;
     sd::SdStatus status = monitor.snapshot();
@@ -377,6 +387,39 @@ TEST_CASE("sd status monitor defaults to not detected and publishes copies") {
     // A clock-independent DB run must not replace a real timestamp with 1970.
     monitor.record_success(0);
     CHECK(monitor.snapshot().last_success == 5678);
+}
+
+TEST_CASE("sd status monitor: probes only refresh presence, not the last backup result") {
+    sd::SdStatusMonitor monitor;
+    monitor.record_success(4321);
+    monitor.record_probe_failure();
+    sd::SdStatus status = monitor.snapshot();
+    CHECK_FALSE(status.card_present);
+    CHECK(status.backup_ok);
+    CHECK(status.last_success == 4321);
+    CHECK(status.last_error.empty());
+
+    monitor.record_probe_success();
+    status = monitor.snapshot();
+    CHECK(status.card_present);
+    CHECK(status.backup_ok);
+    CHECK(status.last_success == 4321);
+    CHECK(status.last_error.empty());
+
+    // A failed real run records its error; a later probe must not replace it.
+    monitor.record_error("write failed: kaffeekasse-db.json", true);
+    monitor.record_probe_failure();
+    status = monitor.snapshot();
+    CHECK_FALSE(status.card_present);
+    CHECK_FALSE(status.backup_ok);
+    CHECK(status.last_success == 4321);
+    CHECK(status.last_error == "write failed: kaffeekasse-db.json");
+
+    monitor.record_probe_success();
+    status = monitor.snapshot();
+    CHECK(status.card_present);
+    CHECK_FALSE(status.backup_ok);
+    CHECK(status.last_error == "write failed: kaffeekasse-db.json");
 }
 
 TEST_CASE("sd DB backup matches export_backup modulo created_at and contains no secrets") {

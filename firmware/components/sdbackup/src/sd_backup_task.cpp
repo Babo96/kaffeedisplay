@@ -23,8 +23,14 @@ constexpr const char* kTag = "kaffee.sd";
 constexpr UBaseType_t kTaskPriority = 2;
 constexpr uint32_t kTaskStackBytes = 5120;
 constexpr uint32_t kPollIntervalMs = 45000;
-// A missing card is normal. Log it once per quarter hour, not every poll.
-constexpr int64_t kMountLogIntervalUs = 15LL * 60 * 1000 * 1000;
+// There is no card-detect pin. When no run is due, a mount/unmount pair every
+// five minutes refreshes presence without writing anything. A due run's own
+// mount counts as the probe.
+constexpr uint32_t kProbeIntervalMs = 5 * 60 * 1000;
+static_assert(kProbeIntervalMs == static_cast<uint32_t>(kProbeIntervalSeconds) * 1000,
+              "probe interval must match the pure planner constant");
+// A missing card is normal. Log it once per probe interval, not every 45 s poll.
+constexpr int64_t kMountLogIntervalUs = static_cast<int64_t>(kProbeIntervalMs) * 1000;
 
 struct TaskContext {
     KaffeeService* service = nullptr;
@@ -43,7 +49,35 @@ void log_run(const SdPlan& plan, const SdRunReport& report) {
     (void)plan;
 }
 
-void run_once(TaskContext& context, int64_t& last_mount_log_us) {
+Timestamp monotonic_seconds() {
+    return static_cast<Timestamp>(esp_timer_get_time() / 1000000);
+}
+
+void log_missing_card(const std::string& message, int64_t& last_mount_log_us) {
+    const int64_t now_us = esp_timer_get_time();
+    if (now_us - last_mount_log_us < kMountLogIntervalUs) return;
+    last_mount_log_us = now_us;
+    ESP_LOGW(kTag, "no compatible backup card: %s", message.c_str());
+}
+
+// Mount/unmount without writing. Presence only: the monitor must keep the
+// result of the last real backup run.
+void probe_presence(TaskContext& context, int64_t& last_mount_log_us) {
+    auto mounted = context.volume->mount();
+    if (!mounted) {
+        context.status->record_probe_failure();
+        log_missing_card(mounted.error->message, last_mount_log_us);
+        return;
+    }
+    context.status->record_probe_success();
+    auto unmounted = context.volume->unmount();
+    if (!unmounted) {
+        ESP_LOGW(kTag, "card probe unmount failed: %s", unmounted.error->message.c_str());
+    }
+}
+
+void run_once(TaskContext& context, Timestamp mono_now, Timestamp& last_probe,
+              int64_t& last_mount_log_us) {
     const TimeInfo time = context.service->time_info();
 
     SdRunState state;
@@ -59,7 +93,18 @@ void run_once(TaskContext& context, int64_t& last_mount_log_us) {
     }
 
     const SdPlan plan = plan_for(time.now, state, time.source);
-    if (!plan.due()) return;
+    if (!plan.due()) {
+        // Done for today: refresh presence occasionally, never write.
+        if (probe_due(mono_now, last_probe)) {
+            last_probe = mono_now;
+            probe_presence(context, last_mount_log_us);
+        }
+        return;
+    }
+
+    // A due run's mount is the probe, so it shares the same interval. A
+    // failing run therefore retries every probe interval, never every 45 s.
+    if (!probe_due(mono_now, last_probe)) return;
 
     std::shared_ptr<const Ledger> ledger;
     if (plan.write_previous_csv || plan.write_current_csv || plan.write_db) {
@@ -72,6 +117,8 @@ void run_once(TaskContext& context, int64_t& last_mount_log_us) {
         data.db_json = backup_to_json(*ledger, context.service->settings(), time.now);
     }
 
+    // The run's mount is the probe for this interval, success or failure.
+    last_probe = mono_now;
     auto ran = execute_plan(time.now, plan, *context.volume, *context.state_store, state, data);
     if (ran) {
         context.status->record_success(time.now);
@@ -83,12 +130,8 @@ void run_once(TaskContext& context, int64_t& last_mount_log_us) {
     const bool mount_problem =
         starts_with(message, "mount") || starts_with(message, "spi_bus_initialize");
     context.status->record_error(message, !mount_problem);
-    const int64_t now_us = esp_timer_get_time();
     if (mount_problem) {
-        if (now_us - last_mount_log_us >= kMountLogIntervalUs) {
-            last_mount_log_us = now_us;
-            ESP_LOGW(kTag, "no compatible backup card: %s", message.c_str());
-        }
+        log_missing_card(message, last_mount_log_us);
     } else {
         ESP_LOGW(kTag, "backup failed: %s", message.c_str());
     }
@@ -96,9 +139,10 @@ void run_once(TaskContext& context, int64_t& last_mount_log_us) {
 
 void task_entry(void* arg) {
     auto* context = static_cast<TaskContext*>(arg);
+    Timestamp last_probe = 0;
     int64_t last_mount_log_us = 0;
     for (;;) {
-        run_once(*context, last_mount_log_us);
+        run_once(*context, monotonic_seconds(), last_probe, last_mount_log_us);
         vTaskDelay(pdMS_TO_TICKS(kPollIntervalMs));
     }
 }

@@ -32,6 +32,14 @@ Timestamp scheduled_run_at(Timestamp now) {
     return reports::from_berlin(midnight_plus_eight(reports::to_berlin(now - kSecondsPerDay)));
 }
 
+bool probe_due(Timestamp now, Timestamp last_probe) {
+    if (now <= 0) return false;
+    if (last_probe <= 0) return true;
+    // A reset monotonic clock (reboot) also needs a fresh probe.
+    if (now < last_probe) return true;
+    return now - last_probe >= kProbeIntervalSeconds;
+}
+
 reports::Period current_month(Timestamp now) {
     return reports::month(now);
 }
@@ -64,6 +72,16 @@ void SdStatusMonitor::record_error(std::string message, bool card_present) {
     status_.card_present = card_present;
     status_.backup_ok = false;
     status_.last_error = std::move(message);
+}
+
+void SdStatusMonitor::record_probe_success() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    status_.card_present = true;
+}
+
+void SdStatusMonitor::record_probe_failure() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    status_.card_present = false;
 }
 
 std::string db_path() {

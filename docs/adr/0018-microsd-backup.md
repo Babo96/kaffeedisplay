@@ -105,6 +105,16 @@ under the service mutex). Secrets are excluded by the existing
 - Defaults mean "no card detected / no successful run yet". The backup task
   updates the monitor only after a successful write or a failed attempt, so the
   stale case is "last observed state", not a per-frame probe.
+- When no run is due, a mount/unmount pair every **5 minutes** refreshes
+  presence without writing. The run's own mount counts as the probe for that
+  interval, so the card is never mounted more often than the probe interval.
+- **Probe status rule:** a successful probe sets only `card_present = true`; a
+  failed probe sets only `card_present = false`. Neither touches `backup_ok`,
+  `last_success` or `last_error`, so a failed probe never erases the result of
+  the last real run or replaces a write error with a mount error. Only a real
+  run updates those three fields.
+- Missing-card log lines share one rate limit with run-time mount failures:
+  at most one per probe interval (5 minutes).
 
 ## Consequences
 
