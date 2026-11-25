@@ -5,6 +5,7 @@ Track: firmware / storage
 Owner: implementation lane (fixer)
 Branch: `feat/64-microsd-backup`
 Issue: [#64 — Micro-SD als Backup-Speicher](https://github.com/Babo96/kaffeedisplay/issues/64)
+PR: [#65](https://github.com/Babo96/kaffeedisplay/pull/65)
 
 ## Scope
 
