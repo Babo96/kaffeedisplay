@@ -21,6 +21,7 @@ file as you work; put the PR link under Evidence when done.
 | T-048 | Long-term statistics (all-time per user, product, month) | web/api/domain | T-001, T-002, T-004 | fixer | done ([#56](https://github.com/Babo96/kaffeedisplay/pull/56)) |
 | T-049 | Optional guest prices per product | domain/web/ui | T-001, T-002, T-003 | fixer | done ([#57](https://github.com/Babo96/kaffeedisplay/pull/57)) |
 | T-051 | Page 1 member grid paged by vertical swipe | ui | T-003 | designer | done ([#58](https://github.com/Babo96/kaffeedisplay/pull/58)) |
+| T-064 | Micro-SD backup (DB export, daily month CSV, page-3 status) | embedded/storage | T-009 | fixer / designer | done ([#65](https://github.com/Babo96/kaffeedisplay/pull/65)) |
 
 Design record for T-013: [T-013-page1-layout.md](T-013-page1-layout.md) (page 1
 for 30+ members — grid geometry, scroll affordance and the numbers behind them).
