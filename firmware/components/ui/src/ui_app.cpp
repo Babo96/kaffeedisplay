@@ -80,9 +80,9 @@ UiAppImpl::~UiAppImpl() {
         lv_timer_delete(housekeeping_timer_);
         housekeeping_timer_ = nullptr;
     }
-    if (flip_timer_ != nullptr) {
-        lv_timer_delete(flip_timer_);
-        flip_timer_ = nullptr;
+    if (swipe_timer_ != nullptr) {
+        lv_timer_delete(swipe_timer_);
+        swipe_timer_ = nullptr;
     }
     remove_test_pattern();
     if (standby_timer_ != nullptr) {
@@ -117,7 +117,7 @@ void UiAppImpl::start() {
     // start scrolling, and the pages must flip from anywhere.
     // 10 ms: the board reads the indev every 12 ms, so sampling slower than that
     // regularly skipped the point a swipe ended on and dropped flips.
-    flip_timer_ = lv_timer_create(&UiAppImpl::flip_poll_cb, 10, this);
+    swipe_timer_ = lv_timer_create(&UiAppImpl::swipe_poll_cb, 10, this);
     started_ = true;
     last_book_activity_ = lv_tick_get();
     show_page(0, false);
@@ -535,6 +535,10 @@ void UiAppImpl::debug_book_page(int page) {
     refresh_book_page();
 }
 
+int UiAppImpl::debug_book_page_index() const {
+    return book_page_;
+}
+
 void UiAppImpl::tick() {
     if (started_) housekeeping();
 }
@@ -694,15 +698,15 @@ void UiAppImpl::delete_context_cb(lv_event_t* event) {
     delete static_cast<IdContext*>(lv_event_get_user_data(event));
 }
 
-void UiAppImpl::flip_poll_cb(lv_timer_t* timer) {
+void UiAppImpl::swipe_poll_cb(lv_timer_t* timer) {
     auto* app = static_cast<UiAppImpl*>(lv_timer_get_user_data(timer));
     if (app == nullptr) return;
     lv_indev_t* indev = lv_indev_get_next(nullptr);
     if (indev == nullptr) return;
     // A swipe on the standby or the test pattern only wakes/leaves it; it must
-    // not flip the page underneath.
+    // not flip the page underneath, and it must not page the member grid either.
     if (app->standby_active_ || app->test_overlay_ != nullptr) {
-        app->flip_tracking_ = false;
+        app->swipe_tracking_ = false;
         return;
     }
 
@@ -710,55 +714,93 @@ void UiAppImpl::flip_poll_cb(lv_timer_t* timer) {
     lv_indev_get_point(indev, &point);
     const bool pressed = lv_indev_get_state(indev) == LV_INDEV_STATE_PRESSED;
 
-    if (pressed && !app->flip_tracking_) {
-        app->flip_tracking_ = true;
-        app->flip_flipped_ = false;
-        app->flip_suppress_clicks_ = false;
-        app->flip_start_x_ = point.x;
-        app->flip_start_y_ = point.y;
+    if (!pressed) {
+        // The release ends the gesture whether it was seen as a click or not.
+        app->swipe_tracking_ = false;
         return;
     }
-    if (!pressed) {
-        app->flip_tracking_ = false;
+    if (!app->swipe_tracking_) {
+        app->swipe_tracking_ = true;
+        app->swipe_axis_ = SwipeAxis::None;
+        app->swipe_fired_ = false;
+        app->swipe_suppress_clicks_ = false;
+        app->swipe_start_x_ = point.x;
+        app->swipe_start_y_ = point.y;
         return;
     }
 
-    // Flip as soon as the swipe is unambiguous instead of waiting for the
-    // release: the release is only sampled every 20 ms and a fast swipe often
-    // ends between two samples, which dropped flips on the device.
-    const int dx = point.x - app->flip_start_x_;
-    const int dy = point.y - app->flip_start_y_;
+    const int dx = point.x - app->swipe_start_x_;
+    const int dy = point.y - app->swipe_start_y_;
     const int abs_dx = dx < 0 ? -dx : dx;
     const int abs_dy = dy < 0 ? -dy : dy;
 
+    // Axis lock: nothing is decided inside the dead zone, so a slow finger is
+    // never re-anchored sample by sample and a short wobble cannot flip a page.
+    // The first sample past 24 px in either axis fixes the axis for the rest of
+    // the gesture - the dominant delta of that sample wins, horizontal on a tie.
+    // A diagonal drag therefore resolves to exactly one action, never both.
+    // The same sample is still evaluated below, so a flick that only produces
+    // one moving sample before the release is not dropped.
+    if (app->swipe_axis_ == SwipeAxis::None) {
+        if (abs_dx < kSwipeDeadZonePx && abs_dy < kSwipeDeadZonePx) return;
+        app->swipe_axis_ = abs_dx >= abs_dy ? SwipeAxis::Horizontal : SwipeAxis::Vertical;
+    }
+
     // The finger is back where the gesture started, so a new swipe begins here -
-    // also the case when the previous release fell between two samples and was
-    // never seen.
-    if (abs_dx < kFlipRearmPx) {
-        app->flip_start_x_ = point.x;
-        app->flip_start_y_ = point.y;
-        app->flip_flipped_ = false;
-        app->flip_suppress_clicks_ = false;
+    // this also covers a release that fell between two samples and was never
+    // seen. The suppression survives when the gesture already moved something:
+    // a drag that returns to its start must still never book, only a gesture
+    // that never did anything releases its click normally.
+    if (abs_dx < kSwipeDeadZonePx && abs_dy < kSwipeDeadZonePx) {
+        const bool fired_before = app->swipe_fired_;
+        app->swipe_axis_ = SwipeAxis::None;
+        app->swipe_fired_ = false;
+        if (!fired_before) app->swipe_suppress_clicks_ = false;
+        app->swipe_start_x_ = point.x;
+        app->swipe_start_y_ = point.y;
         return;
     }
-    if (app->flip_flipped_ || abs_dx < kFlipThresholdPx || abs_dx < abs_dy * 2) return;
 
-    app->flip_flipped_ = true;
-    // The finger is still down and now rests on the next page, so the click its
-    // release produces must be discarded - a swipe must never book a drink.
-    app->flip_suppress_clicks_ = true;
-    if (dx < 0 && app->current_page_ < 2) {
-        app->show_page(app->current_page_ + 1, false);
-    } else if (dx > 0 && app->current_page_ > 0) {
-        app->show_page(app->current_page_ - 1, false);
+    if (app->swipe_fired_) return;
+
+    if (app->swipe_axis_ == SwipeAxis::Horizontal) {
+        // Flip as soon as the swipe is unambiguous instead of waiting for the
+        // release: the release is only sampled every 20 ms and a fast swipe
+        // often ends between two samples, which dropped flips on the device.
+        if (abs_dx < kFlipThresholdPx) return;
+
+        app->swipe_fired_ = true;
+        // The finger is still down and now rests on the next page, so the click
+        // its release produces must be discarded - a swipe must never book a
+        // drink.
+        app->swipe_suppress_clicks_ = true;
+        if (dx < 0 && app->current_page_ < 2) {
+            app->show_page(app->current_page_ + 1, false);
+        } else if (dx > 0 && app->current_page_ > 0) {
+            app->show_page(app->current_page_ - 1, false);
+        }
+        return;
     }
+
+    // Vertical: only page 1 has something to page, and only the member grid
+    // does. The grid snaps a whole member page (12 tiles) instead of following
+    // the finger: the body has no per-sample redraw budget on this panel
+    // (docs/tasks/T-013-page1-layout.md section 12).
+    if (app->current_page_ != 0 || abs_dy < kPageStepPx) return;
+    // Mark the gesture before it does anything visible: a drag must never book,
+    // and the release click of a paged drag belongs to the drag.
+    app->swipe_fired_ = true;
+    app->swipe_suppress_clicks_ = true;
+    // Up (dy < 0) shows the next page, down the previous one - the same way the
+    // arrows and the horizontal flip are ordered.
+    app->step_book_page(dy < 0 ? 1 : -1);
 }
 
 bool UiAppImpl::swallow_drag_click() {
-    if (!flip_suppress_clicks_) return false;
+    if (!swipe_suppress_clicks_) return false;
     // Consumed once, and dropped as soon as the finger is up again so the next
     // deliberate tap works normally.
-    if (!flip_tracking_) flip_suppress_clicks_ = false;
+    if (!swipe_tracking_) swipe_suppress_clicks_ = false;
     return true;
 }
 
@@ -792,12 +834,15 @@ void UiAppImpl::tileview_changed_cb(lv_event_t* event) {
 void UiAppImpl::dot_click_cb(lv_event_t* event) {
     auto* ctx = static_cast<IdContext*>(lv_event_get_user_data(event));
     if (ctx == nullptr || ctx->app == nullptr) return;
+    // A swipe that ends on a page dot must not change the page a second time.
+    if (ctx->app->swallow_drag_click()) return;
     ctx->app->show_page(std::atoi(ctx->id.c_str()), true);
 }
 
 void UiAppImpl::undo_cb(lv_event_t* event) {
     auto* app = static_cast<UiAppImpl*>(lv_event_get_user_data(event));
-    if (app != nullptr) app->undo_last_booking();
+    if (app == nullptr || app->swallow_drag_click()) return;
+    app->undo_last_booking();
 }
 
 }  // namespace kaffee::ui

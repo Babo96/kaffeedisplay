@@ -424,3 +424,13 @@ page 1.
 
 `--scroll` in the simulator is replaced by `--book-page N`, and
 `07-page1-30-users-page3.png` became `07-page1-30-users-page3.png`.
+
+## 13. Follow-up: the arrows gained a gesture twin (T-051)
+
+The arrows stayed, but they are 44 x 56 px targets in the right margin and some
+users reach for the list instead. T-051 adds a vertical drag on page 1 that does
+exactly what the arrows do - **one member page per gesture**, still one rebuild
+per page, still no per-sample redraw. The offsets in section 12 were not changed;
+see [docs/tasks/T-051-page1-vertical-swipe.md](T-051-page1-vertical-swipe.md) for
+the gesture rules and why snapping to a page (rather than following the finger)
+is the only version this panel can afford.

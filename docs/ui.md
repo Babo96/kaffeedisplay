@@ -14,6 +14,14 @@ horizontal) switches the page in a single static frame on release. A swipe
 during a drag cannot book anything, because the flip happens on release. Product
 taps never trigger navigation.
 
+One drag recogniser reads the raw touch stream (not LVGL gestures, because a
+gesture dies as soon as a list on another page starts scrolling) and locks its
+axis at the first 24 px of travel: whichever delta is larger in that sample wins,
+horizontal on a tie, and the axis never changes for the rest of the gesture. A
+diagonal drag therefore does exactly one of the two things - flip the page or
+page the member grid - and never both. A gesture whose release follows a drag is
+swallowed, so a scroll can never book a drink.
+
 ### Page 1 — Buchen
 
 - Idle: name tiles with one of 30 distinct static cartoon illustrations (IDs 1–30)
@@ -27,9 +35,16 @@ taps never trigger navigation.
 - Sized for 30+ members: **12 members per page** (3 x 4 tiles of 124 x 80 px) with
   `▲` / `▼` arrows and a `1/3` counter in the right margin. The list never
   scrolls: paging redraws once per arrow press, while a drag redrew the whole
-  viewport per pointer sample (this panel cannot do that smoothly). The arrows
-  hide when everything fits on one page. See
-  `docs/tasks/T-013-page1-layout.md`.
+  viewport per pointer sample (this panel cannot do that smoothly). A vertical
+  drag of ≥100 px does the same thing as the arrows without aiming at a 44 px
+  button: up shows the next page, down the previous one, one page per gesture,
+  and a drag back through the press point re-arms and steps back. The grid snaps
+  instead of following the finger, so a drag costs one redraw, not one per
+  sample. The arrows and the counter *are* the affordance that the list
+  continues - no fade, no `weitere …` text (see
+  `docs/tasks/T-013-page1-layout.md` section 4). The arrows hide when everything
+  fits on one page, and then a vertical drag does nothing. See
+  `docs/tasks/T-013-page1-layout.md` and `docs/tasks/T-051-page1-vertical-swipe.md`.
 - Empty state: `Keine Benutzer – Admin: Seite 3 → WLAN starten`.
 - Selected: name + `Wechseln`, saldo (green credit / red `Offen`), product tiles
   with icon, name and price.

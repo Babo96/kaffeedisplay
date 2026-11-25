@@ -108,7 +108,8 @@ void UiAppImpl::build_page_book(lv_obj_t* tile) {
     lv_obj_set_style_pad_top(book_body_, 8, 0);
     lv_obj_set_style_pad_bottom(book_body_, 8, 0);
     lv_obj_set_style_pad_row(book_body_, 8, 0);
-    // Members are paged, not scrolled: the body never scrolls.
+    // Members are paged, not scrolled: the body never scrolls. The page arrows
+    // and a vertical swipe both step the page (see ui_app.cpp swipe_poll_cb).
     lv_obj_set_scroll_dir(book_body_, LV_DIR_NONE);
     theme::hide_scrollbars(book_body_);
 
@@ -132,6 +133,9 @@ void UiAppImpl::refresh_book_page() {
     }
     last_book_fingerprint_ = book_catalog_fingerprint();
     lv_obj_clean(book_body_);
+    // The selected/empty states have nothing to page; the vertical swipe reads
+    // this to leave them alone.
+    book_page_count_ = 1;
 
     const MemberOrder members = ordered_members();
     const std::vector<User>& active_users = members.users;
@@ -294,6 +298,7 @@ void UiAppImpl::refresh_book_page() {
                                : static_cast<int>((active_users.size() + kPerPage - 1) / kPerPage);
     if (book_page_ >= page_count) book_page_ = page_count - 1;
     if (book_page_ < 0) book_page_ = 0;
+    book_page_count_ = page_count;
     const size_t first = static_cast<size_t>(book_page_) * kPerPage;
     const size_t last = std::min(active_users.size(), first + kPerPage);
 
@@ -368,21 +373,35 @@ void UiAppImpl::refresh_book_page() {
 
 void UiAppImpl::book_page_prev_cb(lv_event_t* event) {
     auto* app = static_cast<UiAppImpl*>(lv_event_get_user_data(event));
-    if (app == nullptr || app->book_page_ == 0) return;
-    --app->book_page_;
-    app->queue_.push();
+    if (app == nullptr) return;
+    app->step_book_page(-1);
 }
 
 void UiAppImpl::book_page_next_cb(lv_event_t* event) {
     auto* app = static_cast<UiAppImpl*>(lv_event_get_user_data(event));
     if (app == nullptr) return;
-    ++app->book_page_;
-    app->queue_.push();
+    app->step_book_page(1);
+}
+
+// Shared by the arrow buttons and the vertical swipe: clamp to the built pages
+// and let the queued refresh rebuild once. Clamping here keeps a fast swipe that
+// runs past the last page from queuing empty rebuilds.
+void UiAppImpl::step_book_page(int delta) {
+    if (delta == 0 || book_page_count_ <= 1) return;
+    int next = book_page_ + delta;
+    if (next < 0) next = 0;
+    if (next > book_page_count_ - 1) next = book_page_count_ - 1;
+    if (next == book_page_) return;
+    book_page_ = next;
+    queue_.push();
 }
 
 void UiAppImpl::user_click_cb(lv_event_t* event) {
     auto* ctx = static_cast<IdContext*>(lv_event_get_user_data(event));
     if (ctx == nullptr || ctx->app == nullptr) return;
+    // A vertical swipe pages the grid; its release must not open the member card
+    // of whatever tile now sits under the finger.
+    if (ctx->app->swallow_drag_click()) return;
     auto user = ctx->app->backend_.find_user(ctx->id);
     if (user) ctx->app->select_user(*user);
 }
@@ -403,7 +422,8 @@ void UiAppImpl::guest_click_cb(lv_event_t* event) {
 
 void UiAppImpl::change_user_cb(lv_event_t* event) {
     auto* app = static_cast<UiAppImpl*>(lv_event_get_user_data(event));
-    if (app != nullptr) app->clear_selection();
+    if (app == nullptr || app->swallow_drag_click()) return;
+    app->clear_selection();
 }
 
 }  // namespace kaffee::ui

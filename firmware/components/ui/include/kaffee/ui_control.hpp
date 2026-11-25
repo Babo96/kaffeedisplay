@@ -25,6 +25,8 @@ class UiControl {
     virtual void debug_deselect() = 0;
     // Shows the given page of the booking page's member grid (test/tooling only).
     virtual void debug_book_page(int page) = 0;
+    // Member-grid page currently built, 0-based (test/tooling only).
+    virtual int debug_book_page_index() const = 0;
 };
 
 // Boot splash: a warm brown screen with a simple cup, shown while the service,

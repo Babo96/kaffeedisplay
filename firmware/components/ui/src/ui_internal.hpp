@@ -63,6 +63,7 @@ class UiAppImpl final : public UiApp, public UiControl {
     void debug_book(const std::string& product_id) override;
     void debug_deselect() override;
     void debug_book_page(int page) override;
+    int debug_book_page_index() const override;
 
   private:
     struct IdContext {
@@ -107,6 +108,7 @@ class UiAppImpl final : public UiApp, public UiControl {
 
     void clear_selection();
     void select_user(const User& user);
+    void step_book_page(int delta);
     void select_guest();
     void book_product(const Product& product);
     void show_toast(const std::string& text, bool undoable, const std::string& event_id,
@@ -148,7 +150,7 @@ class UiAppImpl final : public UiApp, public UiControl {
     static void time_sync_cb(lv_event_t* event);
     static void test_overlay_click_cb(lv_event_t* event);
     static void tileview_changed_cb(lv_event_t* event);
-    static void flip_poll_cb(lv_timer_t* timer);
+    static void swipe_poll_cb(lv_timer_t* timer);
 
     IUiBackend& backend_;
     ChangeQueue queue_;
@@ -237,18 +239,33 @@ class UiAppImpl final : public UiApp, public UiControl {
     bool standby_animating_ = false;
 
     lv_timer_t* housekeeping_timer_ = nullptr;
-    // Horizontal swipe-to-flip recogniser (indev stream, not LVGL gestures).
-    lv_timer_t* flip_timer_ = nullptr;
-    bool flip_tracking_ = false;
-    bool flip_flipped_ = false;
-    bool flip_suppress_clicks_ = false;
-    int flip_start_x_ = 0;
-    int flip_start_y_ = 0;
+    // Two-axis drag recogniser on the indev stream (not LVGL gestures):
+    // horizontal swipes flip pages, vertical swipes step the page-1 member grid.
+    lv_timer_t* swipe_timer_ = nullptr;
+    bool swipe_tracking_ = false;
+    // The axis is fixed by the first excursion past the dead zone and holds for
+    // the rest of the gesture, so a diagonal drag resolves to exactly one of the
+    // two actions.
+    enum class SwipeAxis : uint8_t { None, Horizontal, Vertical };
+    SwipeAxis swipe_axis_ = SwipeAxis::None;
+    // Set once the gesture has flipped the page or stepped the member grid, so
+    // one drag never does the same thing twice.
+    bool swipe_fired_ = false;
+    bool swipe_suppress_clicks_ = false;
+    int swipe_start_x_ = 0;
+    int swipe_start_y_ = 0;
+    // Number of member pages built by the last refresh; 1 when nothing pages.
+    int book_page_count_ = 1;
     // True when the release belongs to a swipe, so tile clicks ignore it.
     bool swallow_drag_click();
     static constexpr int kFlipThresholdPx = 70;
-    // Below this horizontal excursion the finger counts as back at the start.
-    static constexpr int kFlipRearmPx = 30;
+    // Nothing is decided below this excursion; the first sample past it locks
+    // the axis. A gesture that returns inside it counts as back at the start.
+    static constexpr int kSwipeDeadZonePx = 24;
+    // Vertical travel that snaps to one member page. Roughly one tile row
+    // (88 px): a normal swipe clears it once, a deliberate drag does not skip
+    // pages, and the gesture never repeats while the finger stays out.
+    static constexpr int kPageStepPx = 100;
 
     friend struct IdContext;
 };
