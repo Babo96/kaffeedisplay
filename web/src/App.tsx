@@ -16,6 +16,7 @@ import { DashboardPage } from "./pages/DashboardPage";
 import { ExpensesPage } from "./pages/ExpensesPage";
 import { FirstLoginPage } from "./pages/FirstLoginPage";
 import { LoginPage } from "./pages/LoginPage";
+import { LongTermPage } from "./pages/LongTermPage";
 import { ProductsPage } from "./pages/ProductsPage";
 import { ReportsPage } from "./pages/ReportsPage";
 import { SettingsPage } from "./pages/SettingsPage";
@@ -124,6 +125,7 @@ export function App() {
         <Route path="/products" element={<ProductsPage />} />
         <Route path="/expenses" element={<ExpensesPage />} />
         <Route path="/reports" element={<ReportsPage />} />
+        <Route path="/longterm" element={<LongTermPage />} />
         <Route path="/cash" element={<CashPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/system" element={<SystemPage />} />

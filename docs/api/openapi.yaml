@@ -454,6 +454,20 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Leaderboard' }
+  /stats/longterm:
+    get:
+      summary: All-time consumption statistics
+      description: |
+        Aggregates every member purchase and guest sale ever recorded, net of
+        voids. A void is attributed to the original booking, not to the month in
+        which it was reversed. Money values are integer cents; `spend_cents` is
+        the positive consumed amount, never a balance.
+      responses:
+        '200':
+          description: Long-term statistics
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LongTermStats' }
   /reports/{kind}:
     get:
       summary: Report data or CSV export
@@ -926,6 +940,55 @@ components:
               name: { type: string }
               color: { type: string }
               count: { type: integer }
+    LongTermStats:
+      type: object
+      properties:
+        first_sale_at: { type: integer, format: int64, description: 0 when no sale exists. }
+        last_sale_at: { type: integer, format: int64, description: 0 when no sale exists. }
+        member_items: { type: integer }
+        guest_items: { type: integer }
+        member_spend_cents: { type: integer, format: int64 }
+        guest_spend_cents: { type: integer, format: int64 }
+        estimated_items:
+          type: integer
+          description: Sales whose timestamp is not fully trusted, net of voids.
+        users:
+          type: array
+          items:
+            type: object
+            properties:
+              user_id: { type: string }
+              name: { type: string }
+              color: { type: string }
+              items: { type: integer }
+              spend_cents: { type: integer, format: int64 }
+        products:
+          type: array
+          items:
+            type: object
+            properties:
+              product_id: { type: string }
+              name: { type: string }
+              category: { type: string }
+              items: { type: integer }
+              spend_cents: { type: integer, format: int64 }
+        months:
+          type: array
+          items:
+            type: object
+            properties:
+              year: { type: integer }
+              month: { type: integer, minimum: 1, maximum: 12 }
+              member_items: { type: integer }
+              guest_items: { type: integer }
+              member_spend_cents: { type: integer, format: int64 }
+              guest_spend_cents: { type: integer, format: int64 }
+        time_quality:
+          type: object
+          properties:
+            trusted: { type: boolean }
+            source: { type: string, enum: [synced, restored, unset] }
+            last_sync: { type: integer, format: int64 }
     DisplaySettings:
       type: object
       properties:

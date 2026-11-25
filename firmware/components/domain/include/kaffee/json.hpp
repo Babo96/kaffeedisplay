@@ -23,6 +23,7 @@ nlohmann::json cash_count_to_json(const CashCount& count);
 
 nlohmann::json summary_to_json(const Summary& summary);
 nlohmann::json leaderboard_to_json(const Leaderboard& leaderboard);
+nlohmann::json long_term_stats_to_json(const LongTermStats& stats);
 
 nlohmann::json display_settings_to_json(const DisplaySettings& settings);
 DisplaySettings display_settings_from_json(const nlohmann::json& j);

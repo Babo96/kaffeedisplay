@@ -8,6 +8,7 @@ import type {
   Expense,
   ExpenseInput,
   LogsResponse,
+  LongTermStats,
   Product,
   ProductInput,
   ReportFormat,
@@ -44,6 +45,7 @@ export interface ReportRequest {
 export const api = {
   // --- system / dashboard -------------------------------------------------
   summary: () => request<Summary>("/stats/summary"),
+  longTermStats: () => request<LongTermStats>("/stats/longterm"),
   device: () => request<DeviceStatus>("/device"),
   time: () => request<TimeInfo>("/time"),
   syncTime: (epochMs: number, timezone: string) =>

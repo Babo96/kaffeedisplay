@@ -202,4 +202,17 @@ std::string report_filename(ReportKind kind, const Period& period);
 Leaderboard leaderboard(const Ledger& ledger, const Period& period);
 Leaderboard monthly_leaderboard(const Ledger& ledger, Timestamp now);
 
+// All-time consumption grouped by Europe/Berlin calendar month. Membership and
+// void attribution match `Ledger::long_term_stats()`: a void decrements the
+// month of the original booking, even when the reversal was recorded later.
+struct LongTermMonth {
+    int year = 1970;
+    int month = 1;
+    int member_items = 0;
+    int guest_items = 0;
+    Cents member_spend_cents = 0;
+    Cents guest_spend_cents = 0;
+};
+std::vector<LongTermMonth> long_term_months(const Ledger& ledger);
+
 }  // namespace kaffee::reports

@@ -839,3 +839,28 @@ TEST_CASE("golden CSV files for every report and format") {
         check_golden(base + "_raw.csv", render(s.ledger, kind, november, CsvFormat::Raw));
     }
 }
+
+TEST_CASE("long-term months group by Europe/Berlin and net voids to the original month") {
+    Fixture f;
+    const std::string ada = f.user("Ada", OCT_01);
+    const std::string kaffee = f.product("Kaffee", 50, OCT_01);
+
+    const Event october = f.must(f.ledger.purchase(ada, kaffee, "oct", OCT_15, TimeSource::Synced));
+    f.must(f.ledger.guest_sale(kaffee, "guest-nov", NOV_02, TimeSource::Synced));
+    // The void is recorded in December but must reduce October.
+    f.must(f.ledger.void_event(october.id, "late", "void", DEC_02, TimeSource::Synced));
+
+    const std::vector<LongTermMonth> months = long_term_months(f.ledger);
+    REQUIRE(months.size() == 2);
+    CHECK(months[0].year == 2026);
+    CHECK(months[0].month == 10);
+    CHECK(months[0].member_items == 0);
+    CHECK(months[0].member_spend_cents == 0);
+    CHECK(months[0].guest_items == 0);
+    CHECK(months[1].year == 2026);
+    CHECK(months[1].month == 11);
+    CHECK(months[1].member_items == 0);
+    CHECK(months[1].guest_items == 1);
+    CHECK(months[1].guest_spend_cents == 50);
+}
+

@@ -1289,4 +1289,46 @@ Leaderboard monthly_leaderboard(const Ledger& ledger, Timestamp now) {
     return leaderboard(ledger, month(now));
 }
 
+std::vector<LongTermMonth> long_term_months(const Ledger& ledger) {
+    std::map<std::pair<int, int>, LongTermMonth> months;
+    auto apply = [&](const Event& sale, int sign) {
+        const Civil civil = to_berlin(sale.ts);
+        LongTermMonth& row = months[{civil.year, civil.month}];
+        row.year = civil.year;
+        row.month = civil.month;
+        if (sale.type == EventType::Purchase) {
+            row.member_items += sign;
+            row.member_spend_cents += sign * (-sale.amount_cents);
+        } else {
+            row.guest_items += sign;
+            row.guest_spend_cents += sign * sale.amount_cents;
+        }
+    };
+
+    for (const Event& e : ledger.events()) {
+        if (e.type == EventType::Purchase || e.type == EventType::GuestSale) {
+            apply(e, 1);
+        } else if (e.type == EventType::Void) {
+            const auto original = ledger.find_event(e.reverses);
+            if (!original) continue;
+            if (original->type == EventType::Purchase ||
+                original->type == EventType::GuestSale) {
+                apply(*original, -1);
+            }
+        }
+    }
+
+    std::vector<LongTermMonth> out;
+    out.reserve(months.size());
+    for (auto& [key, row] : months) {
+        (void)key;
+        out.push_back(row);
+    }
+    std::sort(out.begin(), out.end(), [](const LongTermMonth& a, const LongTermMonth& b) {
+        if (a.year != b.year) return a.year < b.year;
+        return a.month < b.month;
+    });
+    return out;
+}
+
 }  // namespace kaffee::reports

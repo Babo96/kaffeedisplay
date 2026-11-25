@@ -184,6 +184,40 @@ struct Leaderboard {
     int guest_count = 0;
 };
 
+// All-time consumption aggregates. Only purchases and guest sales are counted,
+// with voids subtracted from the original booking (same semantics as
+// `leaderboard()`). Money is always integer cents and `spend_cents` is the
+// positive amount consumed, not a balance.
+struct LongTermUserStat {
+    std::string user_id;
+    std::string name;
+    std::string color;
+    int items = 0;
+    Cents spend_cents = 0;
+};
+
+struct LongTermProductStat {
+    std::string product_id;
+    std::string name;
+    std::string category;
+    int items = 0;
+    Cents spend_cents = 0;
+};
+
+struct LongTermStats {
+    Timestamp first_sale_at = 0;
+    Timestamp last_sale_at = 0;
+    int member_items = 0;
+    int guest_items = 0;
+    Cents member_spend_cents = 0;
+    Cents guest_spend_cents = 0;
+    // Sales whose timestamp is not fully trusted (`TimeSource` is not Synced).
+    // Adjusted by voids like the item counters.
+    int estimated_items = 0;
+    std::vector<LongTermUserStat> users;
+    std::vector<LongTermProductStat> products;
+};
+
 struct CommitHook {
     std::function<Result<Unit>(const Event&)> fn;
 };
@@ -294,6 +328,8 @@ class Ledger {
     Cents balance(const std::string& user_id) const;
     Summary summary() const;
     Leaderboard leaderboard(Timestamp from, Timestamp to) const;
+    // All-time member/guest item and spend totals per user and product.
+    LongTermStats long_term_stats() const;
     std::vector<std::pair<std::string, Cents>> balances() const;
 
     uint64_t next_seq() const {

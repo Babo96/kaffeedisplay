@@ -152,6 +152,49 @@ export interface Leaderboard {
   entries: LeaderboardEntry[];
 }
 
+export interface LongTermUserStat {
+  user_id: string;
+  name: string;
+  color: string;
+  items: number;
+  spend_cents: Cents;
+}
+
+export interface LongTermProductStat {
+  product_id: string;
+  name: string;
+  category: string;
+  items: number;
+  spend_cents: Cents;
+}
+
+export interface LongTermMonth {
+  year: number;
+  month: number;
+  member_items: number;
+  guest_items: number;
+  member_spend_cents: Cents;
+  guest_spend_cents: Cents;
+}
+
+export interface LongTermStats {
+  first_sale_at: number;
+  last_sale_at: number;
+  member_items: number;
+  guest_items: number;
+  member_spend_cents: Cents;
+  guest_spend_cents: Cents;
+  estimated_items: number;
+  users: LongTermUserStat[];
+  products: LongTermProductStat[];
+  months: LongTermMonth[];
+  time_quality?: {
+    trusted?: boolean;
+    source?: string;
+    last_sync?: number;
+  };
+}
+
 /**
  * Order of the member tiles on the device booking page. `creation` is the order
  * the members were created in; `usage` puts the members with the most bookings

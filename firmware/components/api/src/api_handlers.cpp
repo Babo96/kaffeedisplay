@@ -828,6 +828,34 @@ esp_err_t handle_leaderboard(RequestContext& ctx) {
     return send_json(ctx.req, 200, leaderboard_to_json(service.leaderboard(range.from, range.to)));
 }
 
+esp_err_t handle_longterm_stats(RequestContext& ctx) {
+    KaffeeService& service = ctx.server.service();
+    const LongTermStats stats = service.long_term_stats();
+    const std::shared_ptr<const Ledger> ledger = service.ledger_snapshot();
+    if (!ledger) {
+        return send_error(ctx.req, 500, "internal_error", "Statistik konnte nicht erzeugt werden");
+    }
+
+    nlohmann::json payload = long_term_stats_to_json(stats);
+    nlohmann::json months = nlohmann::json::array();
+    for (const reports::LongTermMonth& m : reports::long_term_months(*ledger)) {
+        months.push_back(nlohmann::json{{"year", m.year},
+                                        {"month", m.month},
+                                        {"member_items", m.member_items},
+                                        {"guest_items", m.guest_items},
+                                        {"member_spend_cents", m.member_spend_cents},
+                                        {"guest_spend_cents", m.guest_spend_cents}});
+    }
+    payload["months"] = std::move(months);
+
+    const TimeInfo time = ctx.server.platform().time_info();
+    nlohmann::json quality{{"source", Ledger::time_source_name(time.source)}};
+    if (time.last_sync > 0) quality["last_sync"] = time.last_sync;
+    if (time.now > 0) quality["trusted"] = time.trusted;
+    payload["time_quality"] = std::move(quality);
+    return send_json(ctx.req, 200, payload);
+}
+
 esp_err_t handle_reports(RequestContext& ctx) {
     const std::string kind_name = ctx.params.get("kind").value_or("");
     auto kind = reports::report_kind_from_name(kind_name);
@@ -1185,6 +1213,7 @@ const std::vector<RouteHandler>& route_handlers() {
 
         &handle_summary,
         &handle_leaderboard,
+        &handle_longterm_stats,
         &handle_reports,
 
         &handle_settings_get,

@@ -243,6 +243,59 @@ TEST_CASE("leaderboard counts net purchases by month") {
     CHECK(l.guest_count == 1);
 }
 
+TEST_CASE("long-term stats aggregate users, products and void reversal") {
+    Fixture f;
+    auto ada = f.user("Ada");
+    auto bob = f.user("Bob");
+    auto kaffee = f.product("Kaffee", 50);
+    auto tee = f.product("Tee", 30);
+
+    auto first = f.must(f.ledger.purchase(ada, kaffee, "1", f.now, TimeSource::Synced));
+    f.must(f.ledger.purchase(ada, kaffee, "2", f.now + 10, TimeSource::Synced));
+    f.must(f.ledger.purchase(bob, tee, "3", f.now + 20, TimeSource::Restored));
+    f.must(f.ledger.guest_sale(tee, "4", f.now + 30, TimeSource::Synced));
+    f.must(f.ledger.void_event(first.id, "oops", "5", f.now + 40, TimeSource::Synced));
+
+    const LongTermStats stats = f.ledger.long_term_stats();
+    CHECK(stats.member_items == 2);
+    CHECK(stats.member_spend_cents == 80);
+    CHECK(stats.guest_items == 1);
+    CHECK(stats.guest_spend_cents == 30);
+    CHECK(stats.estimated_items == 1);
+    CHECK(stats.first_sale_at == f.now);
+    CHECK(stats.last_sale_at == f.now + 30);
+
+    REQUIRE(stats.users.size() == 2);
+    CHECK(stats.users[0].name == "Ada");
+    CHECK(stats.users[0].items == 1);
+    CHECK(stats.users[0].spend_cents == 50);
+    CHECK(stats.users[1].name == "Bob");
+    CHECK(stats.users[1].items == 1);
+    CHECK(stats.users[1].spend_cents == 30);
+
+    REQUIRE(stats.products.size() == 2);
+    CHECK(stats.products[0].name == "Tee");
+    CHECK(stats.products[0].items == 2);
+    CHECK(stats.products[0].spend_cents == 60);
+    CHECK(stats.products[1].name == "Kaffee");
+    CHECK(stats.products[1].items == 1);
+    CHECK(stats.products[1].spend_cents == 50);
+}
+
+TEST_CASE("long-term stats are empty without sales") {
+    Fixture f;
+    f.user("Ada");
+    f.product("Kaffee", 50);
+    const LongTermStats stats = f.ledger.long_term_stats();
+    CHECK(stats.member_items == 0);
+    CHECK(stats.guest_items == 0);
+    CHECK(stats.first_sale_at == 0);
+    CHECK(stats.last_sale_at == 0);
+    CHECK(stats.users.size() == 1);
+    CHECK(stats.users[0].items == 0);
+    CHECK(stats.products.size() == 1);
+}
+
 TEST_CASE("hash chain rejects tampering") {
     Fixture f;
     auto u = f.user("Ada");

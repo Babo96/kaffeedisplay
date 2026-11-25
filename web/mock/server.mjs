@@ -185,6 +185,128 @@ function addEvent(input) {
   return created;
 }
 
+const berlinMonth = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Europe/Berlin",
+  year: "numeric",
+  month: "2-digit",
+});
+
+/** Mirror of Ledger::long_term_stats() and reports::long_term_months(). */
+function longTermStats() {
+  const userRows = new Map(
+    users.map((user) => [
+      user.id,
+      { user_id: user.id, name: user.name, color: user.color, items: 0, spend_cents: 0 },
+    ]),
+  );
+  const productRows = new Map(
+    products.map((item) => [
+      item.id,
+      {
+        product_id: item.id,
+        name: item.name,
+        category: item.category,
+        items: 0,
+        spend_cents: 0,
+      },
+    ]),
+  );
+  const monthRows = new Map();
+  const stats = {
+    first_sale_at: 0,
+    last_sale_at: 0,
+    member_items: 0,
+    guest_items: 0,
+    member_spend_cents: 0,
+    guest_spend_cents: 0,
+    estimated_items: 0,
+  };
+
+  const apply = (sale, sign) => {
+    if (stats.first_sale_at === 0 || sale.ts < stats.first_sale_at) {
+      stats.first_sale_at = sale.ts;
+    }
+    if (sale.ts > stats.last_sale_at) stats.last_sale_at = sale.ts;
+    const member = sale.type === "purchase";
+    const spend = member ? -sale.amount_cents : sale.amount_cents;
+    if (member) {
+      stats.member_items += sign;
+      stats.member_spend_cents += sign * spend;
+    } else {
+      stats.guest_items += sign;
+      stats.guest_spend_cents += sign * spend;
+    }
+    if (sale.product_id) {
+      const row = productRows.get(sale.product_id) ?? {
+        product_id: sale.product_id,
+        name: sale.product_name,
+        category: sale.product_category,
+        items: 0,
+        spend_cents: 0,
+      };
+      row.items += sign;
+      row.spend_cents += sign * spend;
+      productRows.set(sale.product_id, row);
+    }
+    if (member) {
+      const row = userRows.get(sale.user_id) ?? {
+        user_id: sale.user_id,
+        name: sale.user_name,
+        color: sale.user_color,
+        items: 0,
+        spend_cents: 0,
+      };
+      row.items += sign;
+      row.spend_cents += sign * spend;
+      userRows.set(sale.user_id, row);
+    }
+
+    const [year, month] = berlinMonth.format(new Date(sale.ts * 1000)).split("-");
+    const key = `${year}-${month}`;
+    const bucket =
+      monthRows.get(key) ?? {
+        year: Number(year),
+        month: Number(month),
+        member_items: 0,
+        guest_items: 0,
+        member_spend_cents: 0,
+        guest_spend_cents: 0,
+      };
+    if (member) {
+      bucket.member_items += sign;
+      bucket.member_spend_cents += sign * spend;
+    } else {
+      bucket.guest_items += sign;
+      bucket.guest_spend_cents += sign * spend;
+    }
+    monthRows.set(key, bucket);
+  };
+
+  for (const sale of events) {
+    if (sale.type === "purchase" || sale.type === "guest_sale") {
+      apply(sale, 1);
+    } else if (sale.type === "void") {
+      const original = events.find((item) => item.id === sale.reverses);
+      if (!original) continue;
+      if (original.type === "purchase" || original.type === "guest_sale") apply(original, -1);
+    }
+  }
+
+  const byItemsThenName = (a, b) =>
+    b.items - a.items || b.spend_cents - a.spend_cents || a.name.localeCompare(b.name);
+  return {
+    ...stats,
+    users: [...userRows.values()].sort(byItemsThenName),
+    products: [...productRows.values()].sort(byItemsThenName),
+    months: [...monthRows.values()].sort((a, b) => a.year - b.year || a.month - b.month),
+    time_quality: {
+      trusted: device.time.trusted,
+      source: device.time.source,
+      last_sync: device.time.last_sync,
+    },
+  };
+}
+
 const summary = {
   cash_expected_cents: 5200,
   prepaid_cents: 1670,
@@ -960,6 +1082,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (path === "/api/v1/stats/summary") return json(res, 200, summary);
+  if (path === "/api/v1/stats/longterm") return json(res, 200, longTermStats());
   if (path === "/api/v1/device") return json(res, 200, device);
   if (path === "/api/v1/time" && method === "GET") return json(res, 200, device.time);
   if (path === "/api/v1/time/sync" && method === "POST") {

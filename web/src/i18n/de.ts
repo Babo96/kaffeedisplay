@@ -22,6 +22,7 @@ export const de = {
   products: "Getränke",
   expenses: "Ausgaben",
   reports: "Berichte",
+  longTerm: "Langzeit",
   cash: "Kassensturz",
   settings: "Einstellungen",
   settingsSubtitle: "Anzeige, Netzwerk, Zeit und Kasse",
@@ -310,6 +311,30 @@ export const de = {
   customFrom: "Startdatum",
   customTo: "Enddatum",
   invalidRange: "Das Startdatum muss vor dem Enddatum liegen.",
+
+  // long-term statistics
+  longTermTitle: "Langzeitstatistik",
+  longTermHint:
+    "Alle erfassten Buchungen seit der ersten Tasse – unabhängig vom Berichtszeitraum.",
+  longTermRange: "Zeitraum",
+  longTermEmpty:
+    "Noch keine Buchungen erfasst. Sobald jemand ein Getränk bucht, erscheint hier die Langzeitstatistik.",
+  longTermNoSales: "Keine Verkäufe im Zeitraum.",
+  longTermMemberItems: "Tassen Mitglieder",
+  longTermGuestItems: "Tassen Gäste",
+  longTermTotalItems: "Tassen gesamt",
+  longTermEstimated: "Geschätzte Zeitstempel",
+  longTermEstimatedHint: "Buchungen ohne synchronisierte Gerätezeit.",
+  longTermEstimatedNone: "Alle Zeitstempel synchronisiert.",
+  longTermPerUser: "Tassen pro Benutzer",
+  longTermPerProduct: "Tassen pro Getränk",
+  longTermPerMonth: "Tassen pro Monat",
+  longTermCups: "Tassen",
+  longTermSpend: "Umsatz",
+  longTermMemberCups: "Mitglieder",
+  longTermGuestCups: "Gäste",
+  longTermMemberSpend: "Verbrauch Mitglieder",
+  longTermGuestSpend: "Gastumsatz",
 
   // report column labels (keys come from the API payload)
   reportColumns: {

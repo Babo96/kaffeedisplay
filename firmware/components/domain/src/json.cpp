@@ -195,6 +195,34 @@ nlohmann::json leaderboard_to_json(const Leaderboard& l) {
         {"from", l.from}, {"to", l.to}, {"guest_count", l.guest_count}, {"entries", entries}};
 }
 
+nlohmann::json long_term_stats_to_json(const LongTermStats& s) {
+    nlohmann::json users = nlohmann::json::array();
+    for (const auto& u : s.users) {
+        users.push_back(nlohmann::json{{"user_id", u.user_id},
+                                       {"name", u.name},
+                                       {"color", u.color},
+                                       {"items", u.items},
+                                       {"spend_cents", u.spend_cents}});
+    }
+    nlohmann::json products = nlohmann::json::array();
+    for (const auto& p : s.products) {
+        products.push_back(nlohmann::json{{"product_id", p.product_id},
+                                          {"name", p.name},
+                                          {"category", p.category},
+                                          {"items", p.items},
+                                          {"spend_cents", p.spend_cents}});
+    }
+    return nlohmann::json{{"first_sale_at", s.first_sale_at},
+                          {"last_sale_at", s.last_sale_at},
+                          {"member_items", s.member_items},
+                          {"guest_items", s.guest_items},
+                          {"member_spend_cents", s.member_spend_cents},
+                          {"guest_spend_cents", s.guest_spend_cents},
+                          {"estimated_items", s.estimated_items},
+                          {"users", users},
+                          {"products", products}};
+}
+
 nlohmann::json display_settings_to_json(const DisplaySettings& s) {
     return nlohmann::json{{"rotation", s.rotation},
                           {"brightness_active", s.brightness_active},

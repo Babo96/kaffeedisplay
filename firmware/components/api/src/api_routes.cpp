@@ -45,6 +45,7 @@ const std::vector<RouteSpec>& route_specs() {
 
         {RouteMethod::Get, "/api/v1/stats/summary", AuthPolicy::Session, false},
         {RouteMethod::Get, "/api/v1/stats/leaderboard", AuthPolicy::Session, false},
+        {RouteMethod::Get, "/api/v1/stats/longterm", AuthPolicy::Session, false},
         {RouteMethod::Get, "/api/v1/reports/{kind}", AuthPolicy::Session, false},
 
         {RouteMethod::Get, "/api/v1/settings", AuthPolicy::Session, false},

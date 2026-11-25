@@ -162,6 +162,7 @@ class KaffeeService : public IUiBackend {
     virtual Cents balance(const std::string& user_id) const = 0;
     virtual Summary summary() const = 0;
     virtual Leaderboard leaderboard(Timestamp from, Timestamp to) const = 0;
+    virtual LongTermStats long_term_stats() const = 0;
     virtual SystemStats stats() const = 0;
     virtual TimeInfo time_info() const = 0;
     virtual NetworkStatus network_status() const = 0;

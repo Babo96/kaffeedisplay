@@ -965,6 +965,91 @@ Leaderboard Ledger::leaderboard(Timestamp from, Timestamp to) const {
     return out;
 }
 
+LongTermStats Ledger::long_term_stats() const {
+    LongTermStats out;
+    std::map<std::string, LongTermUserStat> users;
+    for (const User& u : users_) {
+        users[u.id] = LongTermUserStat{u.id, u.name, u.color, 0, 0};
+    }
+    std::map<std::string, LongTermProductStat> products;
+    for (const Product& p : products_) {
+        products[p.id] = LongTermProductStat{p.id, p.name, p.category, 0, 0};
+    }
+
+    // `sign` is +1 for the original sale and -1 for its void. Voids carry no
+    // product/user snapshot, so they are attributed through `reverses`.
+    auto apply = [&](const Event& sale, int sign) {
+        if (out.first_sale_at == 0 || sale.ts < out.first_sale_at) out.first_sale_at = sale.ts;
+        if (sale.ts > out.last_sale_at) out.last_sale_at = sale.ts;
+        if (sale.time_source != TimeSource::Synced) out.estimated_items += sign;
+
+        const bool member = sale.type == EventType::Purchase;
+        const Cents spend = member ? -sale.amount_cents : sale.amount_cents;
+        if (member) {
+            out.member_items += sign;
+            out.member_spend_cents += sign * spend;
+        } else {
+            out.guest_items += sign;
+            out.guest_spend_cents += sign * spend;
+        }
+
+        if (!sale.product_id.empty()) {
+            LongTermProductStat& row = products[sale.product_id];
+            row.product_id = sale.product_id;
+            if (!sale.product_name.empty()) row.name = sale.product_name;
+            if (!sale.product_category.empty()) row.category = sale.product_category;
+            row.items += sign;
+            row.spend_cents += sign * spend;
+        }
+        if (member) {
+            LongTermUserStat& row = users[sale.user_id];
+            row.user_id = sale.user_id;
+            if (!sale.user_name.empty()) row.name = sale.user_name;
+            if (!sale.user_color.empty()) row.color = sale.user_color;
+            row.items += sign;
+            row.spend_cents += sign * spend;
+        }
+    };
+
+    for (const Event& e : events_) {
+        if (e.type == EventType::Purchase || e.type == EventType::GuestSale) {
+            apply(e, 1);
+        } else if (e.type == EventType::Void) {
+            const std::optional<Event> original = find_event(e.reverses);
+            if (!original) continue;
+            if (original->type == EventType::Purchase ||
+                original->type == EventType::GuestSale) {
+                apply(*original, -1);
+            }
+        }
+    }
+
+    out.users.reserve(users.size());
+    for (auto& [id, row] : users) {
+        (void)id;
+        out.users.push_back(row);
+    }
+    std::sort(out.users.begin(), out.users.end(),
+              [](const LongTermUserStat& a, const LongTermUserStat& b) {
+                  if (a.items != b.items) return a.items > b.items;
+                  if (a.spend_cents != b.spend_cents) return a.spend_cents > b.spend_cents;
+                  return a.name < b.name;
+              });
+
+    out.products.reserve(products.size());
+    for (auto& [id, row] : products) {
+        (void)id;
+        out.products.push_back(row);
+    }
+    std::sort(out.products.begin(), out.products.end(),
+              [](const LongTermProductStat& a, const LongTermProductStat& b) {
+                  if (a.items != b.items) return a.items > b.items;
+                  if (a.spend_cents != b.spend_cents) return a.spend_cents > b.spend_cents;
+                  return a.name < b.name;
+              });
+    return out;
+}
+
 std::vector<std::pair<std::string, Cents>> Ledger::balances() const {
     std::vector<std::pair<std::string, Cents>> out;
     out.reserve(balances_.size());

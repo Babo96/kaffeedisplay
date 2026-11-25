@@ -214,6 +214,7 @@ class KaffeeServiceImpl final : public KaffeeService {
     Cents balance(const std::string& user_id) const override;
     Summary summary() const override;
     Leaderboard leaderboard(Timestamp from, Timestamp to) const override;
+    LongTermStats long_term_stats() const override;
     SystemStats stats() const override;
     TimeInfo time_info() const override;
     NetworkStatus network_status() const override;
@@ -606,6 +607,11 @@ Summary KaffeeServiceImpl::summary() const {
 Leaderboard KaffeeServiceImpl::leaderboard(Timestamp from, Timestamp to) const {
     std::lock_guard<std::mutex> lock(mutex_);
     return ledger_.leaderboard(from, to);
+}
+
+LongTermStats KaffeeServiceImpl::long_term_stats() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return ledger_.long_term_stats();
 }
 
 SystemStats KaffeeServiceImpl::stats() const {
