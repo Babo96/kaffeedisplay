@@ -186,8 +186,7 @@ class KaffeeService : public IUiBackend {
                                        const std::string& request_id) = 0;
     virtual Result<Event> create_product(const std::string& name, const std::string& category,
                                          const std::string& icon, const std::string& color,
-                                         Cents price_cents, int sort,
-                                         const std::string& request_id,
+                                         Cents price_cents, int sort, const std::string& request_id,
                                          Cents guest_price_cents = kNoGuestPrice) = 0;
     virtual Result<Event> update_product(const std::string& product_id, const std::string& name,
                                          const std::string& category, const std::string& icon,

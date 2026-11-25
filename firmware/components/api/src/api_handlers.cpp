@@ -519,8 +519,7 @@ Result<ProductInput> parse_product_input(const json& body, const Product* base) 
         if (body["guest_price_cents"].is_null()) {
             guest_price_cents = kNoGuestPrice;
         } else {
-            Result<Cents> guest =
-                get_cents(body, "guest_price_cents", false, 0, kMaxPriceCents);
+            Result<Cents> guest = get_cents(body, "guest_price_cents", false, 0, kMaxPriceCents);
             if (!guest) {
                 return Result<ProductInput>::fail(result_error(guest).code,
                                                   result_error(guest).message);
@@ -591,10 +590,10 @@ esp_err_t handle_products_update(RequestContext& ctx) {
     Result<ProductInput> input = parse_product_input(*body.value, &*existing);
     if (!input) return send_service_error(ctx.req, result_error(input));
 
-    Result<Event> event = service.update_product(
-        id, input.value->name, input.value->category, input.value->icon, input.value->color,
-        input.value->price_cents, input.value->sort, input.value->active, ctx.request_id,
-        input.value->guest_price_cents);
+    Result<Event> event =
+        service.update_product(id, input.value->name, input.value->category, input.value->icon,
+                               input.value->color, input.value->price_cents, input.value->sort,
+                               input.value->active, ctx.request_id, input.value->guest_price_cents);
     if (!event) return send_service_error(ctx.req, result_error(event));
     auto product = service.find_product(id);
     if (!product) return send_error(ctx.req, 404, "not_found", "Produkt nicht gefunden");

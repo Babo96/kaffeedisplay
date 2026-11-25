@@ -204,8 +204,7 @@ Result<Unit> Ledger::validate_event(const Event& event) const {
                 return Result<Unit>::fail("product", "product already exists");
             if (event.unit_amount_cents < 0)
                 return Result<Unit>::fail("price", "price must not be negative");
-            if (event.guest_price_cents < kNoGuestPrice ||
-                event.guest_price_cents > kMaxPriceCents)
+            if (event.guest_price_cents < kNoGuestPrice || event.guest_price_cents > kMaxPriceCents)
                 return Result<Unit>::fail("price", "guest price is out of range");
             break;
         case EventType::ProductUpdated:
@@ -213,8 +212,7 @@ Result<Unit> Ledger::validate_event(const Event& event) const {
         case EventType::ProductDeleted:
             if (!product_index_.count(event.product_id))
                 return Result<Unit>::fail("product", "unknown product");
-            if (event.guest_price_cents < kNoGuestPrice ||
-                event.guest_price_cents > kMaxPriceCents)
+            if (event.guest_price_cents < kNoGuestPrice || event.guest_price_cents > kMaxPriceCents)
                 return Result<Unit>::fail("price", "guest price is out of range");
             break;
         case EventType::Purchase: {
