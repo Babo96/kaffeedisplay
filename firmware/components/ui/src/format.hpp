@@ -26,4 +26,23 @@ std::string initials(const std::string& name);
 std::string time_source_label(TimeSource source, const std::string& last_source);
 std::string rotation_label(int degrees);
 
+// State of the microSD backup row on page 3. The raw backend error text is
+// English and technical, so it never reaches the panel; only this mapping does.
+enum class SdBackupState {
+    NotDetected,        // no compatible card, or the mount failed
+    Present,            // card seen, no run has succeeded yet
+    Error,              // card seen, the last run failed
+    Saved,              // card seen, last run wrote successfully
+    SavedWithoutClock,  // success while the clock was unset (never a 1970 date)
+};
+
+struct SdBackupStatus {
+    SdBackupState state = SdBackupState::NotDetected;
+    std::string value;       // short German value for the row
+    bool attention = false;  // show the actionable hint under the row
+};
+
+SdBackupStatus sd_backup_status(bool card_present, bool backup_ok, Timestamp last_success,
+                                bool has_error);
+
 }  // namespace kaffee::ui

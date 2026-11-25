@@ -87,6 +87,15 @@ inline constexpr const char* SYSTEM_TIME_BROWSER = "Browser";
 inline constexpr const char* SYSTEM_TIME_SNTP = "SNTP";
 inline constexpr const char* SYSTEM_TIME_RESTORED = "Wiederhergestellt";
 inline constexpr const char* SYSTEM_TIME_UNSET = "Nicht gesetzt";
+// Backup card (top of page 3). The value itself is composed in format.cpp.
+inline constexpr const char* SYSTEM_SD = "Backup-SD";
+inline constexpr const char* SYSTEM_SD_NOT_DETECTED = "nicht erkannt";
+inline constexpr const char* SYSTEM_SD_DETECTED = "erkannt";
+inline constexpr const char* SYSTEM_SD_SAVED = "gesichert";
+inline constexpr const char* SYSTEM_SD_ERROR = "Fehler beim Sichern";
+inline constexpr const char* SYSTEM_SD_CAPTION = "Täglich automatisch um 00:08 Uhr";
+inline constexpr const char* SYSTEM_SD_HINT = "Karte einsetzen oder prüfen";
+
 inline constexpr const char* SYSTEM_DEVICE = "Gerät";
 inline constexpr const char* SYSTEM_TEMPERATURE = "Chip-Temperatur";
 inline constexpr const char* SYSTEM_UPTIME = "Laufzeit";

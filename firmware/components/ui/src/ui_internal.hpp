@@ -81,6 +81,7 @@ class UiAppImpl final : public UiApp, public UiControl {
         STAT_MAC,
         STAT_NETWORK,
         STAT_DRINKS_TODAY,
+        STAT_SD_BACKUP,
         STAT_COUNT,
     };
 
@@ -203,6 +204,8 @@ class UiAppImpl final : public UiApp, public UiControl {
     lv_obj_t* system_time_last_ = nullptr;
     lv_obj_t* system_time_quality_ = nullptr;
     lv_obj_t* system_time_warning_ = nullptr;
+    // Caption under the Backup-SD row; swaps to the actionable hint.
+    lv_obj_t* system_sd_caption_ = nullptr;
     lv_obj_t* stat_values_[STAT_COUNT] = {};
     bool last_ap_active_ = false;
     bool stay_awake_ = false;

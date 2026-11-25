@@ -88,6 +88,13 @@ restoring from the card.
 - **Not verified on hardware**: no card and no `/dev/ttyUSB0` were available.
   The physical mount, card removal while mounted and brown-out behaviour remain
   to be checked on the device.
+- **Page 3 status row** (designer): slim `Backup-SD` card above WLAN, rendered
+  from cached `stats()` only (no mount, no filesystem access), refreshed with
+  the existing 5 s page-3 cadence. States: `nicht erkannt` (muted),
+  `11.11.2026 09:41`-style last success, `Fehler beim Sichern` (warning),
+  `erkannt` (muted) and `gesichert` for the unset-clock marker; the raw English
+  `sd_last_error` never reaches the panel. `docs/ui/screenshots/05-system-ap-qr.png`
+  regenerated; `make test-ui` and `tools/check_screenshots.py` cover the row.
 
 ## Risks
 

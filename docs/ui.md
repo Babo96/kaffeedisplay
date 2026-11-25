@@ -69,6 +69,12 @@ swallowed, so a scroll can never book a drink.
 
 ### Page 3 — System
 
+- Backup card at the top: `Backup-SD` with the last successful run (date +
+  `HH:MM`), `nicht erkannt` when no compatible card is mounted,
+  `Fehler beim Sichern` after a failed write (never the raw error text) and
+  `erkannt` while a card is present but no run has succeeded yet. A run that
+  succeeded while the clock was unset shows `gesichert`, never 1970. The muted
+  caption states the schedule or asks to insert/check the card.
 - WLAN card: status, `WLAN starten` (3 s long-press), countdown, `Verlängern`,
   `Stoppen`. QR codes only while AP is active: Wi-Fi join + URL. If only STA is
   up, URL QR for the LAN address.
