@@ -822,6 +822,14 @@ components:
         icon: { type: string }
         color: { type: string }
         price_cents: { type: integer, format: int64 }
+        guest_price_cents:
+          type: integer
+          format: int64
+          nullable: true
+          minimum: 0
+          maximum: 100000
+          description: >-
+            Price charged for guest sales. `null` inherits `price_cents`.
         sort: { type: integer }
         active: { type: boolean }
         created_at: { type: integer, format: int64 }
@@ -835,6 +843,15 @@ components:
         icon: { type: string, maxLength: 40 }
         color: { type: string, pattern: '^#[0-9A-Fa-f]{6}$' }
         price_cents: { type: integer, minimum: 0, maximum: 100000 }
+        guest_price_cents:
+          type: integer
+          nullable: true
+          minimum: 0
+          maximum: 100000
+          description: >-
+            Price charged for guest sales. Omit to keep the current value on
+            PATCH (or inherit on create); `null` clears it, so guests pay
+            `price_cents`.
         sort: { type: integer }
         active: { type: boolean, default: true }
     Event:
@@ -860,6 +877,12 @@ components:
         counted_cents: { type: integer, format: int64 }
         expected_cents: { type: integer, format: int64 }
         unit_amount_cents: { type: integer, format: int64 }
+        guest_price_cents:
+          type: integer
+          format: int64
+          description: >-
+            Snapshot of the product's guest price for product events and guest
+            sales; omitted when the product inherited the member price.
         amount_cents: { type: integer, format: int64 }
         payment: { type: string, enum: [balance, cash, ''] }
         note: { type: string }

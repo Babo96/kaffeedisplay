@@ -18,12 +18,17 @@ Balances are derived from events. Archived users keep their history and debt.
 ### Product (drink / offering)
 
 ```
-id, name, category, icon, color, price_cents, sort, active, created_at, updated_at
+id, name, category, icon, color, price_cents, guest_price_cents, sort, active, created_at, updated_at
 ```
 
 `icon` is a key from the built-in icon set. Deleting a product removes it from
 the device; every historical event carries `product_name`, `product_category`
 and `unit_amount_cents` snapshots.
+
+`guest_price_cents` is `null`/absent when guests pay `price_cents`. A value
+`>= 0` is charged for guest sales; `0` is a free guest drink. The domain uses
+the sentinel `-1` internally and omits it from event JSON when unset, so old
+hashes stay valid (see ADR 0017).
 
 ### Admin
 
@@ -60,6 +65,11 @@ counted_cents?, expected_cents?, meta?, prev_hash, hash
 
 `unit_amount_cents` is the unit price for purchases / product snapshots and the
 new amount for `expense_updated`.
+
+`guest_price_cents` is the product's optional guest price snapshot for
+`product_*` and `guest_sale` events. It is omitted when the product inherited
+the member price. `guest_sale.amount_cents` is always the price actually
+charged, so guest revenue never changes when a product price is edited.
 
 ### Expense
 

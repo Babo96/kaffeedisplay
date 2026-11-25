@@ -10,7 +10,9 @@ The Kaffeekasse is a **post-pay tab** for members plus **cash sales for guests**
   member balance / reduces debt and increases the physical cash expectation.
 - A member purchase debits the member's tab but does **not** change cash.
 - A guest sale is paid cash immediately: it increases expected cash and guest
-  revenue, and never touches a member balance.
+  revenue, and never touches a member balance. The amount charged is the
+  product's `guest_price_cents` when set, otherwise its `price_cents`; the event
+  snapshots the amount actually paid.
 - Expenses decrease expected cash. They never touch member balances.
 - Corrections are `void` (reversal) events, never deletes or edits.
 - An `adjustment` changes a member balance without changing cash and requires a
