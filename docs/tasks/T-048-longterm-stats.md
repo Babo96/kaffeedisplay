@@ -66,7 +66,7 @@ history; this task exposes it as an additive read model.
 
 ## Evidence
 
-- PR: _to be filled after opening_
+- PR: https://github.com/Babo96/kaffeedisplay/pull/56
 - Host tests: `make test-host` — 161 cases / 27615 assertions passed
 - `make check` — fmt-check, OpenAPI lint, docs, host + web tests, typecheck,
   web build, asset budgets all passed; firmware build skipped (no `idf.py`)
