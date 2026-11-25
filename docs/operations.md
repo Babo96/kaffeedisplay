@@ -88,10 +88,28 @@ These are admin-only concerns and are not shown on the booking screen.
 - `make check` runs format, OpenAPI lint, relative-link checks, host/web tests,
   the web build, asset generation and size budgets. On a machine without
   `idf.py` it skips the firmware build; CI/Docker builds the firmware.
-- Releases are built by `.github/workflows/release.yml` from `v*` tags. The
-  GitHub release contains `firmware.bin` (OTA app image), `firmware-merged.bin`
-  (flash at offset `0x0`), `SHA256SUMS`, `manifest.json` (commit, IDF image, web
-  asset sizes, checksums) and a changelog. Host tests run in the release job.
+- Releases are built by `.github/workflows/release.yml`. The trigger is a
+  **published GitHub release** (or a manual `workflow_dispatch` with an existing
+  `v*` tag); a tag push on its own publishes nothing. The job builds the tagged
+  commit, verifies the images and attaches to that release: `firmware.bin` (OTA
+  app image), `firmware-merged.bin` (flash at offset `0x0`), `SHA256SUMS`,
+  `manifest.json` (commit, IDF image, web asset sizes, checksums) and a
+  changelog. Host tests run in the release job.
+
+### Flashing a release
+
+`firmware-merged.bin` contains the bootloader, the partition table, the OTA data
+and the app, so it is the whole device in one file:
+
+```sh
+esptool.py --chip esp32s3 -p /dev/ttyUSB0 -b 460800 write_flash 0x0 firmware-merged.bin
+```
+
+The flash parameters come from the image headers (`sdkconfig.defaults`: 16 MiB,
+QIO, 80 MHz). The merged image ends before `0x620000`, so the `storage`
+partition with the ledger is not touched: flashing a release keeps users,
+products and bookings. Use `firmware.bin` instead when updating over OTA from
+the admin UI.
 - `make hil` runs the hardware smoke test when a board is at `/dev/ttyUSB0`;
   see `docs/testing.md`.
 
